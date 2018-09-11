@@ -1,0 +1,33 @@
+Exercise 2.72. Consider the encoding procedure that you designed in exercise 2.68.
+What is the order of growth in the number of steps needed to encode a symbol?  Be sure to include the number of steps needed to search the symbol list at each node encountered.  To answer this question in general is difficult.  Consider the special case where the relative frequencies of the n symbols are as described in exercise 2.71, and give the order of growth (as a function of n) of the number of steps needed to encode the most frequent and least frequent symbols in the alphabet.
+
+Answer:
+
+The 'encode-symbol' procedure starts at the root of the huffman encoding tree and walks down the tree to find the symbol we are interested in. At each node it calls 'element-of-set?' potentially twice to determine the branch in which the symbol exists.
+
+'element-of-set?' has an order of growth of O(n) where n is the number of elements in the set. Note that this order of growth assumes the worst case in which the symbol of interest is the last element in the list that represents the set.
+
+If the relative frequencies of the symbols in the tree are as described in Exercise 2.71 then the number of elements that come into play during the call to 'element-of-set?' reduces by one in each step. This is because of the structure of the tree. See attached image.
+
+So assuming that there are N symbols encoded in the tree and we are trying to encode the least frequent symbol, we will execute 'element-of-set?' once per node and continuosly move down along the left branches all the way till we reach the symbol.  In the attached image, this would be the symbol A at the bottom left of the tree.
+
+The steps for this encoding process will be:
+
+1st call to 'element-of-set?' : 10 steps (since the set size is 10)
+2nd call to 'element-of-set?' : 9 steps (since the set size is 9)
+3rd call to 'element-of-set?' : 8 steps (since the set size is 8)
+
+and so on till we reach the leaf node. So the total number of steps will be 10+9+8+7+6+5+4+3+2+1 = 10 * 11 / 2 = 55.
+
+The formula for this would be N*(N + 1)/2. So *it appears* that the order of growth to encode the least frequent symbol is O(N squared).
+
+For the most frequent symbol, the first call to 'element-of-set?' will have 10 steps but the element will not be found in the left branch. So another call to 'element-of'set?' on the right branch will result in finding the leaf (J in our example) and the encoding will be complete. So the order of growth to encode the most frequent symbol will be O(N).
+
+But... wait a minute.
+
+Assuming that the 'successive-merge' procedure from Exercise 2.69 was used to construct the huffman-encoding-tree, the least frequent symbol will always be the first element in every symbol list. Therefore, the 'element-of-set?' procedure will go through only one step every time it is used. Since 'element-of-set?' will be called N times, the order of growth to encode the least frequent symbol will be O(N) and *not* O(N squared).
+
+Summary: 
+
+Order of growth (as a function of N) of the number of steps needed to encode the most frequent symbol: O(N)
+Order of growth (as a function of N) of the number of steps needed to encode the least frequent symbol: O(N)
