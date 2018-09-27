@@ -1,9 +1,41 @@
 #lang racket
 
-; Exercise 2.92.  By imposing an ordering on variables, extend the polynomial package so that addition and
-; multiplication of polynomials works for polynomials in different variables. (This is not easy!)
+; Exercise 2.93.  Modify the rational-arithmetic package to use generic operations, but change make-rat
+; so that it does not attempt to reduce fractions to lowest terms. Test your system by calling make-rational
+; on two polynomials to produce a rational function
+
+; (define p1 (make-polynomial 'x '((2 1)(0 1))))
+; (define p2 (make-polynomial 'x '((3 1)(0 1))))
+; (define rf (make-rational p2 p1))
+
+; Now add rf to itself, using add. You will observe that this addition procedure does not reduce fractions
+; to lowest terms.
+
+; We can reduce polynomial fractions to lowest terms using the same idea we used with integers:
+; modifying make-rat to divide both the numerator and the denominator by their greatest common divisor.
+; The notion of ``greatest common divisor'' makes sense for polynomials. In fact, we can compute the GCD
+; of two polynomials using essentially the same Euclid's Algorithm that works for integers.60 The integer version is
+
+; (define (gcd a b)
+;   (if (= b 0)
+;       a
+;       (gcd b (remainder a b))))
+
+; Using this, we could make the obvious modification to define a GCD operation that works on term lists:
+
+; (define (gcd-terms a b)
+;  (if (empty-termlist? b)
+;      a
+;     (gcd-terms b (remainder-terms a b))))
+
+; where remainder-terms picks out the remainder component of the list returned by the term-list
+; division operation div-terms that was implemented in exercise 2.91.
 
 ; S O L U T I O N
+
+; GENERIC PROCEDURES
+
+; Generic Polynomial procedures
 
 ; Assumed ordering of variables is (in increasing order of priority):
 ; p, q, r, s, t, u, v, w, x, y, z
@@ -12,12 +44,10 @@
 ; The main work in this exercise lies in the 'convert-polynomial' procedure that transforms a polynomial
 ; from one variable to another
 
-; GENERIC PROCEDURES
-
-; Generic Polynomial procedures
 ; Note: I have designed this with the assumption that the procedures adjoin-term, first-term and rest-terms
 ; though generic, will still be used only internally by the polynomial procedures.
 ; These three procedures are generic but not exposed to the outside world.
+
 (define (variable p) (apply-generic 'variable p))
 (define (term-list p) (apply-generic 'term-list p))
 (define (adjoin-term term term-list) (apply-generic 'adjoin-term term term-list))
@@ -125,11 +155,11 @@
 					; Print the coefficient
 					(cond
 						((=zero? coeff-first-term) (display ""))
-						((and (pair? coeff-first-term) (not (or (equ? coeff-first-term 1) (equ? coeff-first-term -1))))
+						((and (pair? coeff-first-term) (or (not (or (equ? coeff-first-term 1) (equ? coeff-first-term -1))) (=zero? order-first-term)))
 							; Expecting this to be a polynomial
 							(print (ABS coeff-first-term))
 						)
-						((not (equ? coeff-first-term 1))
+						((or (not (equ? coeff-first-term 1)) (=zero? order-first-term))
 							(display (ABS coeff-first-term))
 						)
 					)
@@ -774,25 +804,35 @@
 	(sin r)
 )
 
-; RATIONAL NUMBER PROCEDURES
+; RATIONAL ARITHMETIC PROCEDURES
 (define (numer x) (car x))
 (define (denom x) (cdr x))
 
 (define (make-rational-specific n d)
 	(define (construct-rational n d)
-		(let ((g (gcd n d)))
-			(cond
-				((= d 0) (error "Denominator in a rational number cannot be zero"))
-				((= n 0) (cons n d))
-				((and (< n 0) (< d 0)) (cons (/ (abs n) g) (/ (abs d) g)))
-				((and (< n 0) (> d 0)) (cons (/ n g) (/ d g)))
-				((and (> n 0) (< d 0)) (cons (/ (* -1 n) g) (/ (abs d) g)))
-				((and (> n 0) (> d 0)) (cons (/ n g) (/ d g)))
+		(cond
+			((and (pair? n) (pair? d)) (cons n d))
+			(else
+				(let ((g (gcd n d)))
+					(cond
+						((= d 0) (error "Denominator in a rational number cannot be zero"))
+						((= n 0) (cons n d))
+						((and (< n 0) (< d 0)) (cons (/ (abs n) g) (/ (abs d) g)))
+						((and (< n 0) (> d 0)) (cons (/ n g) (/ d g)))
+						((and (> n 0) (< d 0)) (cons (/ (* -1 n) g) (/ (abs d) g)))
+						((and (> n 0) (> d 0)) (cons (/ n g) (/ d g)))
+					)
+				)
 			)
 		)
 	)
 
 	(cond
+		; This will be the case when we are constructing a rational function in which the numerator
+		; and denominator are polynomials
+		((and (pair? n) (pair? d)) 
+			(construct-rational n d)
+		)
 		((and (integer? n) (integer? d))
 			(construct-rational (exact-round n) (exact-round d))
 		)
@@ -807,15 +847,28 @@
 	)
 )
 
-(define (add-rational x y) (make-rational-specific (+ (* (numer x) (denom y)) (* (numer y) (denom x))) (* (denom x) (denom y))))
-(define (sub-rational x y) (make-rational-specific (- (* (numer x) (denom y)) (* (numer y) (denom x))) (* (denom x) (denom y))))
-(define (mul-rational x y) (make-rational-specific (* (numer x) (numer y)) (* (denom x) (denom y))))
-(define (div-rational x y) (make-rational-specific (* (numer x) (denom y)) (* (denom x) (numer y))))
+(define (add-rational x y)
+	(make-rational-specific
+		(add (mul (numer x) (denom y)) (mul (numer y) (denom x)))
+		(mul (denom x) (denom y))
+	)
+)
+
+(define (sub-rational x y)
+	(make-rational-specific
+		(sub (mul (numer x) (denom y)) (mul (numer y) (denom x)))
+		(mul (denom x) (denom y))
+	)
+)
+
+(define (mul-rational x y) (make-rational-specific (mul (numer x) (numer y)) (mul (denom x) (denom y))))
+
+(define (div-rational x y) (make-rational-specific (mul (numer x) (denom y)) (mul (denom x) (numer y))))
 
 (define (equal-rational? x y)
 	; (display "Entered equal-rational?")
 	; (newline)
-	(and (= (numer x) (numer y)) (= (denom x) (denom y)))
+	(and (equ? (numer x) (numer y)) (equ? (denom x) (denom y)))
 )
 
 (define (greater-rational? x y)
@@ -830,6 +883,14 @@
 	(= 0 (numer x))
 )
 
+(define (print-rational x)
+	(print (numer x))
+	(display " ")
+	(display '/)
+	(display " ")
+	(print (denom x))
+)
+
 (define (square-root-rational rat)
 	(if (>= (numer rat) 0)
 		(sqrt (/ (numer rat) (denom rat)))
@@ -838,7 +899,7 @@
 )
 
 (define (square-rational rat)
-	(cons (* (numer rat) (numer rat)) (* (denom rat) (denom rat)))
+	(cons (mul (numer rat) (numer rat)) (mul (denom rat) (denom rat)))
 )
 
 (define (cosine-rational rat)
@@ -1425,6 +1486,7 @@
 				'add
 				(list
 					(cons '(scheme-number scheme-number) (lambda (x y) (attach-tag 'scheme-number (+ x y))))
+					(cons '(integer integer) (lambda (x y) (attach-tag 'integer (+ x y))))
 					(cons '(rational rational) (lambda (x y) (attach-tag 'rational (add-rational x y))))
 					(cons '(real real) (lambda (x y) (attach-tag 'real (+ x y))))
 					(cons '(complex complex) (lambda (z1 z2) (attach-tag 'complex (add-complex z1 z2))))
@@ -1824,6 +1886,7 @@
 					(cons '(polynomial) print-poly)
 					(cons '(complex) print-complex)
 					(cons '(real) print-real)
+					(cons '(rational) print-rational)
 					(cons '(integer) print-int)
 					(cons '(natural) print-natural)
 					(cons '(boolean) (lambda (x) (if x (display 'True) (display 'False))))
@@ -1908,1345 +1971,22 @@
 
 ; Tests
 
-(define t1-sparse (make-polynomial-sparse-terms (list (list 0 0))))
-(define t2-sparse (make-polynomial-sparse-terms (list (list 0 5))))
-(define t3-sparse (make-polynomial-sparse-terms (list (list 1 7) (list 0 5))))
-(define t4-sparse (make-polynomial-sparse-terms (list (list 1 9) (list 0 -25))))
-(define t5-sparse (make-polynomial-sparse-terms (list (list 5 1) (list 4 2) (list 2 3) (list 1 -2) (list 0 -5))))
-(define t6-sparse (make-polynomial-sparse-terms (list (list 5 2) (list 4 4) (list 2 5) (list 1 -7) (list 0 -15))))
-(define t7-sparse (make-polynomial-sparse-terms (list (list 10 3) (list 7 4) (list 5 -11) (list 1 -7) (list 0 -15))))
-(define t8-sparse (make-polynomial-sparse-terms (list (list 12 4) (list 6 13) (list 5 -12) (list 1 -7) (list 0 -15))))
-(define t9-sparse (make-polynomial-sparse-terms (list (list 12 -4) (list 6 13) (list 5 -12) (list 1 -7) (list 0 -15))))
-(define t10-sparse (make-polynomial-sparse-terms (list (list 12 0) (list 6 -13) (list 5 -12) (list 1 -7) (list 0 -15))))
-
-(define t1-dense (make-polynomial-dense-terms (list 0 0)))
-(define t2-dense (make-polynomial-dense-terms (list 0 5)))
-(define t3-dense (make-polynomial-dense-terms (list 1 3 5)))
-(define t4-dense (make-polynomial-dense-terms (list 1 4 9)))
-(define t5-dense (make-polynomial-dense-terms (list 2 3 5 23)))
-(define t6-dense (make-polynomial-dense-terms (list 2 4 9 19)))
-(define t7-dense (make-polynomial-dense-terms (list 5 1 2 0 3 -2 -5)))
-(define t8-dense (make-polynomial-dense-terms (list 5 2 4 0 5 -7 -15)))
-(define t9-dense (make-polynomial-dense-terms (list 5 -2 4 0 5 -7 -15)))
-(define t10-dense (make-polynomial-dense-terms (list 5 0 -4 0 5 -7 -15)))
-
-(define sp1 (make-polynomial 'p t1-sparse))
-(define sp2 (make-polynomial 'q t2-sparse))
-(define sp3 (make-polynomial 'r t3-sparse))
-(define sp4 (make-polynomial 's t4-sparse))
-(define sp5 (make-polynomial 't t5-sparse))
-(define sp6 (make-polynomial 'u t6-sparse))
-(define sp7 (make-polynomial 'v t7-sparse))
-(define sp8 (make-polynomial 'z t8-sparse))
-(define sp9 (make-polynomial 'y t9-sparse))
-(define sp10 (make-polynomial 'x t10-sparse))
-
-(define dp1 (make-polynomial 'q t1-dense))
-(define dp2 (make-polynomial 'r t2-dense))
-(define dp3 (make-polynomial 's t3-dense))
-(define dp4 (make-polynomial 't t4-dense))
-(define dp5 (make-polynomial 'u t5-dense))
-(define dp6 (make-polynomial 'v t6-dense))
-(define dp7 (make-polynomial 'w t7-dense))
-(define dp8 (make-polynomial 'z t8-dense))
-(define dp9 (make-polynomial 'y t9-dense))
-(define dp10 (make-polynomial 'x t10-dense))
-
-(define p-1-divisor-terms (make-polynomial-sparse-terms (list (list 1 1))))
-(define p-1-dividend-terms (make-polynomial-sparse-terms (list (list 1 1))))
-
-(define p-1-divisor (make-polynomial 'y p-1-divisor-terms))
-(define p-1-dividend (make-polynomial 'y p-1-dividend-terms))
-
-(define p0-divisor-terms (make-polynomial-sparse-terms (list (list 4 1))))
-(define p0-dividend-terms (make-polynomial-sparse-terms (list (list 6 1))))
-
-(define p0-divisor (make-polynomial 'w p0-divisor-terms))
-(define p0-dividend (make-polynomial 'w p0-dividend-terms))
-
-(define p1-divisor-terms (make-polynomial-sparse-terms (list (list 4 1) (list 0 -1))))
-(define p1-dividend-terms (make-polynomial-sparse-terms (list (list 5 1) (list 0 -1))))
-
-(define p1-divisor (make-polynomial 'p p1-divisor-terms))
-(define p1-dividend (make-polynomial 'p p1-dividend-terms))
-
-(define p2-divisor-terms (make-polynomial-sparse-terms (list (list 2 1) (list 0 -1))))
-(define p2-dividend-terms (make-polynomial-sparse-terms (list (list 5 1) (list 0 -1))))
-
-(define p2-divisor (make-polynomial 'x p2-divisor-terms))
-(define p2-dividend (make-polynomial 'x p2-dividend-terms))
-
-(define p3-divisor-terms (make-polynomial-sparse-terms (list (list 2 2) (list 1 3) (list 0 4))))
-(define p3-dividend-terms (make-polynomial-sparse-terms (list (list 5 6) (list 4 9) (list 3 8) (list 2 -15) (list 1 -16) (list 0 5))))
-
-(define p3-divisor (make-polynomial 'x p3-divisor-terms))
-(define p3-dividend (make-polynomial 'x p3-dividend-terms))
-
-(run-test =zero? sp1)
-(run-test =zero? sp2)
-(run-test =zero? sp3)
-(run-test =zero? sp4)
-(run-test =zero? dp1)
-(run-test =zero? dp2)
-(run-test =zero? dp3)
-(run-test =zero? dp4)
-(run-test =zero? dp5)
-(run-test =zero? dp6)
-
-(newline)
-
-(run-test add sp1 sp1)
-(run-test add sp1 sp2)
-(run-test add sp2 sp3)
-(run-test add sp3 sp4)
-(run-test add sp4 sp5)
-(run-test add sp5 sp6)
-(run-test add sp6 sp7)
-(run-test add sp7 sp8)
-
-(newline)
-
-(run-test add dp1 dp1)
-(run-test add dp1 dp2)
-(run-test add dp2 dp3)
-(run-test add dp3 dp4)
-(run-test add dp4 dp5)
-(run-test add dp5 dp6)
-(run-test add dp6 dp7)
-(run-test add dp7 dp8)
-
-(newline)
-
-(run-test add sp1 dp2)
-(run-test add dp2 sp1)
-(run-test add sp2 dp3)
-(run-test add sp3 dp4)
-(run-test add sp4 dp5)
-(run-test add sp5 dp6)
-(run-test add sp6 dp7)
-(run-test add sp7 dp8)
-
-(newline)
-
-(run-test add dp1 sp2)
-(run-test add sp2 dp1)
-(run-test add dp2 sp3)
-(run-test add dp3 sp4)
-(run-test add dp4 sp5)
-(run-test add dp5 sp6)
-(run-test add dp6 sp7)
-(run-test add dp7 sp8)
-
-(newline)
-
-(run-test mul sp1 sp1)
-(run-test mul sp1 sp2)
-(run-test mul sp2 sp2)
-(run-test mul sp2 sp3)
-(run-test mul sp3 sp4)
-(run-test mul sp4 sp4)
-(run-test mul sp4 sp5)
-(run-test mul sp5 sp6)
-(run-test mul sp6 sp7)
-(run-test mul sp7 sp8)
-
-(newline)
-
-(run-test mul dp1 dp1)
-(run-test mul dp1 dp2)
-(run-test mul dp2 dp2)
-(run-test mul dp2 dp3)
-(run-test mul dp3 dp4)
-(run-test mul dp4 dp5)
-(run-test mul dp5 dp6)
-(run-test mul dp6 dp7)
-(run-test mul dp7 dp8)
-
-(newline)
-
-(run-test mul sp1 dp2)
-(run-test mul dp2 sp1)
-(run-test mul sp2 dp3)
-(run-test mul sp3 dp4)
-(run-test mul sp4 dp5)
-(run-test mul sp5 dp6)
-(run-test mul sp6 dp7)
-(run-test mul sp7 dp8)
-
-(newline)
-
-(run-test mul dp1 sp2)
-(run-test mul sp2 dp1)
-(run-test mul dp2 sp3)
-(run-test mul dp3 sp4)
-(run-test mul dp4 sp5)
-(run-test mul dp5 sp6)
-(run-test mul dp6 sp7)
-(run-test mul dp7 sp8)
-
-(newline)
-
-(run-test NEGATE sp1)
-(run-test NEGATE sp2)
-(run-test NEGATE sp2)
-(run-test NEGATE sp3)
-(run-test NEGATE sp4)
-(run-test NEGATE sp5)
-(run-test NEGATE sp6)
-(run-test NEGATE sp7)
-(run-test NEGATE sp8)
-
-(newline)
-
-(run-test NEGATE dp1)
-(run-test NEGATE dp2)
-(run-test NEGATE dp2)
-(run-test NEGATE dp3)
-(run-test NEGATE dp4)
-(run-test NEGATE dp5)
-(run-test NEGATE dp6)
-(run-test NEGATE dp7)
-(run-test NEGATE dp8)
-
-(run-test sub sp1 sp1)
-(run-test sub sp1 sp2)
-(run-test sub sp2 sp2)
-(run-test sub sp2 sp3)
-(run-test sub sp3 sp4)
-(run-test sub sp4 sp5)
-(run-test sub sp5 sp6)
-(run-test sub sp6 sp7)
-(run-test sub sp7 sp8)
-
-(newline)
-
-(run-test sub dp1 dp1)
-(run-test sub dp1 dp2)
-(run-test sub dp2 dp2)
-(run-test sub dp2 dp3)
-(run-test sub dp3 dp4)
-(run-test sub dp4 dp5)
-(run-test sub dp5 dp6)
-(run-test sub dp6 dp7)
-(run-test sub dp7 dp8)
-
-(newline)
-
-(run-test sub sp1 dp2)
-(run-test sub dp2 sp1)
-(run-test sub sp2 dp3)
-(run-test sub sp3 dp4)
-(run-test sub sp4 dp5)
-(run-test sub sp5 dp6)
-(run-test sub sp6 dp7)
-(run-test sub sp7 dp8)
-
-(newline)
-
-(run-test sub dp1 sp2)
-(run-test sub sp2 dp1)
-(run-test sub dp2 sp3)
-(run-test sub dp3 sp4)
-(run-test sub dp4 sp5)
-(run-test sub dp5 sp6)
-(run-test sub dp6 sp7)
-(run-test sub dp7 sp8)
-
-(newline)
-
-(run-test =zero? (sub dp6 dp6))
-(run-test =zero? (sub sp4 sp4))
-
-(newline)
-
-(div p-1-dividend p-1-divisor)
-(div p0-dividend p0-divisor)
-(div p1-dividend p1-divisor)
-(div p2-dividend p2-divisor)
-(div p3-dividend p3-divisor)
-
-(newline)
-
-(define t11-sparse (make-polynomial-sparse-terms (list (list 1 3) (list 0 -2))))
-(define t11-dense (make-polynomial-dense-terms (list 1 7 3)))
-(define P1x (make-polynomial 'x t11-sparse))
-(define P2x (make-polynomial 'x t11-dense))
-
-(define t12-sparse (make-polynomial-sparse-terms (list (list 1 5) (list 0 -4))))
-(define t12-dense (make-polynomial-dense-terms (list 1 9 -6)))
-(define P3x (make-polynomial 'x t12-sparse))
-(define P4x (make-polynomial 'x t12-dense))
-
-(define t13-sparse (make-polynomial-sparse-terms (list (list 1 P1x) (list 0 P2x))))
-(define t13-dense (make-polynomial-dense-terms (list 1 P3x P4x)))
-
-(define P1y (make-polynomial 'y t13-sparse))
-(define P2y (make-polynomial 'y t13-dense))
-
-(define t14-sparse (make-polynomial-sparse-terms (list (list 1 P1y) (list 0 P2y))))
-(define P1z (make-polynomial 'z t14-sparse))
-
-; P(y) = y in terms of x
-(define P3y (make-polynomial 'y (make-polynomial-sparse-terms (list (list 1 1)))))
-(display "P3y: ")
-P3y
-(display "P3y: ")
-(print P3y)
-(newline)
-(display "P3y in terms of x: ")
-(convert-polynomial P3y 'x)
-(display "P3y in terms of x: ")
-(print (convert-polynomial P3y 'x))
-(newline)
-
-(newline)
-
-; P(y) = xy in terms of x should become yx
-(define X (make-polynomial 'x (make-polynomial-sparse-terms (list (list 1 1)))))
-(define P4y (make-polynomial 'y (make-polynomial-sparse-terms (list (list 1 X)))))
-(display "X: ")
-X
-(display "X: ")
-(print X)
-(newline)
-(display "P4y: ")
-P4y
-(display "P4y: ")
-(print P4y)
-(newline)
-(display "P4y in terms of x: ")
-(convert-polynomial P4y 'x)
-(display "P4y in terms of x: ")
-(print (convert-polynomial P4y 'x))
-(newline)
-
-(newline)
-
-; P(y) = x^2y in terms of x should become yx^2
-(define Xsq (make-polynomial 'x (make-polynomial-sparse-terms (list (list 2 1)))))
-(define P5y (make-polynomial 'y (make-polynomial-sparse-terms (list (list 1 Xsq)))))
-(display "Xsq: ")
-Xsq
-(display "Xsq: ")
-(print Xsq)
-(newline)
-(display "P5y: ")
-P5y
-(display "P5y: ")
-(print P5y)
-(newline)
-(display "P5y in terms of x: ")
-(convert-polynomial P5y 'x)
-(display "P5y in terms of x: ")
-(print (convert-polynomial P5y 'x))
-(newline)
-
-(newline)
-
-; P(y) = 5x^2y in terms of x should become 5yx^2
-(define 5Xsq (make-polynomial 'x (make-polynomial-sparse-terms (list (list 2 5)))))
-(define P6y (make-polynomial 'y (make-polynomial-sparse-terms (list (list 1 5Xsq)))))
-(display "5Xsq: ")
-5Xsq
-(display "5Xsq: ")
-(print 5Xsq)
-(newline)
-(display "P6y: ")
-P6y
-(display "P6y: ")
-(print P6y)
-(newline)
-(display "P6y in terms of x: ")
-(convert-polynomial P6y 'x)
-(display "P6y in terms of x: ")
-(print (convert-polynomial P6y 'x))
-(newline)
-
-(newline)
-
-; P(y) = 5x^3y^7 in terms of x should become 5y^7x^3
-(define 5Xcb (make-polynomial 'x (make-polynomial-sparse-terms (list (list 3 5)))))
-(define P7y (make-polynomial 'y (make-polynomial-sparse-terms (list (list 7 5Xcb)))))
-(display "5Xcb: ")
-5Xcb
-(display "5Xcb: ")
-(print 5Xcb)
-(newline)
-(display "P7y: ")
-P7y
-(display "P7y: ")
-(print P7y)
-(newline)
-(display "P7y in terms of x: ")
-(convert-polynomial P7y 'x)
-(display "P7y in terms of x: ")
-(print (convert-polynomial P7y 'x))
-(newline)
-
-(newline)
-
-; Two terms
-(define P8y (add P6y P7y))
-(display "P8y: ")
-P8y
-(display "P8y: ")
-(print P8y)
-(newline)
-(display "P8y in terms of x: ")
-(convert-polynomial P8y 'x)
-(display "P8y in terms of x: ")
-(print (convert-polynomial P8y 'x))
-(newline)
-
-(newline)
-
-; Two terms with same order of x but different orders of y
-(define P9y (make-polynomial 'y (make-polynomial-sparse-terms (list (list 4 Xsq)))))
-(display "P9y: ")
-(print P9y)
-(newline)
-(display "P6y: ")
-(print P6y)
-(newline)
-(define P10y (add P9y P6y))
-(display "P10y = P9y + P6y: ")
-P10y
-(display "P10y = P9y + P6y: ")
-(print P10y)
-(newline)
-(display "P10y in terms of x: ")
-(convert-polynomial P10y 'x)
-(display "P10y in terms of x: ")
-(print (convert-polynomial P10y 'x))
-(newline)
-
-(newline)
-
-; Two terms with same order of x and same orders of y
-(define P61y (make-polynomial 'y (make-polynomial-sparse-terms (list (list 4 5Xsq)))))
-(display "P9y: ")
-(print P9y)
-(newline)
-(display "P61y: ")
-(print P61y)
-(newline)
-(define P11y (add P9y P61y))
-(display "P11y = P9y + P61y: ")
-P11y
-(display "P11y = P9y + P61y: ")
-(print P11y)
-(newline)
-(display "P11y in terms of x: ")
-(convert-polynomial P11y 'x)
-(display "P11y in terms of x: ")
-(print (convert-polynomial P11y 'x))
-(newline)
-
-(newline)
-(display "P1x: ")
-P1x
-(display "P1x: ")
-(print P1x)
-(newline)
-(display "P1x in terms of z: ")
-(convert-polynomial P1x 'z)
-(display "P1x in terms of z: ")
-(print (convert-polynomial P1x 'z))
-(newline)
-
-(newline)
-(display "P1y: ")
-P1y
-(display "P1y: ")
-(print P1y)
-(newline)
-(display "P1y in terms of x: ")
-(convert-polynomial P1y 'x)
-(display "P1y in terms of x: ")
-(print (convert-polynomial P1y 'x))
-(newline)
-
-(newline)
-(display "P1z: ")
-P1z
-(display "P1z: ")
-(print P1z)
-(newline)
-(display "P1z in terms of y: ")
-(convert-polynomial P1z 'y)
-(display "P1z in terms of y: ")
-(print (convert-polynomial P1z 'y))
-(newline)
-
 (newline)
-(display "P1z in terms of x: ")
-(convert-polynomial P1z 'x)
-(display "P1z in terms of x: ")
-(print (convert-polynomial P1z 'x))
-(newline)
 
-; Addition of two similar polynomials in different variables
-(newline)
-(define P5x (make-polynomial 'x (make-polynomial-sparse-terms (list (list 1 11)))))
-(define P12y (make-polynomial 'y (make-polynomial-sparse-terms (list (list 1 15)))))
-(display "P5x: ")
-P5x
-(display "P5x: ")
-(print P5x)
-(newline)
-(display "P12y: ")
-P12y
-(display "P12y: ")
-(print P12y)
-(newline)
-(display "P5x + P12y: ")
-(newline)
-(run-test add P5x P12y)
-(display "P5x + P12y: ")
-(newline)
-(print (add P5x P12y))
-(newline)
+(define p1 (make-polynomial 'x (make-polynomial-sparse-terms (list (list 2 1) (list 0 1)))))
+(define p2 (make-polynomial 'x (make-polynomial-sparse-terms (list (list 3 1) (list 0 1)))))
+(define rf (make-rational p2 p1))
 
-; Addition of two similar polynomials in different variables
-(newline)
-(define P6x (make-polynomial 'x (make-polynomial-sparse-terms (list (list 1 11) (list 0 12)))))
-(define P13y (make-polynomial 'y (make-polynomial-sparse-terms (list (list 1 15) (list 0 17)))))
-(display "P6x: ")
-P6x
-(display "P6x: ")
-(print P6x)
-(newline)
-(display "P13y: ")
-P13y
-(display "P13y: ")
-(print P13y)
-(newline)
-(display "P6x + P13y: ")
-(newline)
-(run-test add P6x P13y)
-(display "P6x + P13y: ")
-(newline)
-(print (add P6x P13y))
-(newline)
+(run-test add rf rf)
 
-; Addition of two similar polynomials in different variables
-(newline)
-(define P7x (make-polynomial 'x (make-polynomial-sparse-terms (list (list 2 10) (list 1 11) (list 0 12)))))
-(define P14y (make-polynomial 'y (make-polynomial-sparse-terms (list (list 2 13) (list 1 15) (list 0 17)))))
-(display "P7x: ")
-P7x
-(display "P7x: ")
-(print P7x)
-(newline)
-(display "P14y: ")
-P14y
-(display "P14y: ")
-(print P14y)
-(newline)
-(display "P7x + P14y: ")
-(newline)
-(run-test add P7x P14y)
-(display "P7x + P14y: ")
-(newline)
-(print (add P7x P14y))
-(newline)
+; Tests
 
 Welcome to DrRacket, version 6.11 [3m].
 Language: racket, with debugging; memory limit: 512 MB.
-Running Test: (#<procedure:=zero?> (polynomial p polynomial-sparse-terms (0 0))) 
-Applying #<procedure:=zero?> on: {}
-Result: #t
-True
 
-Running Test: (#<procedure:=zero?> (polynomial q polynomial-sparse-terms (0 5))) 
-Applying #<procedure:=zero?> on: {5}
-Result: #f
-False
+Running Test: (#<procedure:add> (rational (polynomial x polynomial-sparse-terms (3 1) (0 1)) polynomial x polynomial-sparse-terms (2 1) (0 1)) (rational (polynomial x polynomial-sparse-terms (3 1) (0 1)) polynomial x polynomial-sparse-terms (2 1) (0 1))) 
+Applying #<procedure:add> on: {x^3 + 1} / {x^2 + 1}, {x^3 + 1} / {x^2 + 1}
+Result: (rational (polynomial x polynomial-sparse-terms (5 2) (3 2) (2 2) (0 2) (0 0)) polynomial x polynomial-sparse-terms (4 1) (2 2) (0 1) (0 0))
+{2x^5 + 2x^3 + 2x^2 + 2} / {x^4 + 2x^2 + 1}
 
-Running Test: (#<procedure:=zero?> (polynomial r polynomial-sparse-terms (1 7) (0 5))) 
-Applying #<procedure:=zero?> on: {7r + 5}
-Result: #f
-False
-
-Running Test: (#<procedure:=zero?> (polynomial s polynomial-sparse-terms (1 9) (0 -25))) 
-Applying #<procedure:=zero?> on: {9s - 25}
-Result: #f
-False
-
-Running Test: (#<procedure:=zero?> (polynomial q polynomial-dense-terms 0 0)) 
-Applying #<procedure:=zero?> on: {}
-Result: #t
-True
-
-Running Test: (#<procedure:=zero?> (polynomial r polynomial-dense-terms 0 5)) 
-Applying #<procedure:=zero?> on: {5}
-Result: #f
-False
-
-Running Test: (#<procedure:=zero?> (polynomial s polynomial-dense-terms 1 3 5)) 
-Applying #<procedure:=zero?> on: {3s + 5}
-Result: #f
-False
-
-Running Test: (#<procedure:=zero?> (polynomial t polynomial-dense-terms 1 4 9)) 
-Applying #<procedure:=zero?> on: {4t + 9}
-Result: #f
-False
-
-Running Test: (#<procedure:=zero?> (polynomial u polynomial-dense-terms 2 3 5 23)) 
-Applying #<procedure:=zero?> on: {3u^2 + 5u + 23}
-Result: #f
-False
-
-Running Test: (#<procedure:=zero?> (polynomial v polynomial-dense-terms 2 4 9 19)) 
-Applying #<procedure:=zero?> on: {4v^2 + 9v + 19}
-Result: #f
-False
-
-
-Running Test: (#<procedure:add> (polynomial p polynomial-sparse-terms (0 0)) (polynomial p polynomial-sparse-terms (0 0))) 
-Applying #<procedure:add> on: {}, {}
-Result: (polynomial p polynomial-sparse-terms (0 0))
-{}
-
-Running Test: (#<procedure:add> (polynomial p polynomial-sparse-terms (0 0)) (polynomial q polynomial-sparse-terms (0 5))) 
-Applying #<procedure:add> on: {}, {5}
-Result: (polynomial q polynomial-sparse-terms (0 5))
-{5}
-
-Running Test: (#<procedure:add> (polynomial q polynomial-sparse-terms (0 5)) (polynomial r polynomial-sparse-terms (1 7) (0 5))) 
-Applying #<procedure:add> on: {5}, {7r + 5}
-Result: (polynomial r polynomial-sparse-terms (1 7) (0 (polynomial q polynomial-sparse-terms (0 10))))
-{7r + {10}}
-
-Running Test: (#<procedure:add> (polynomial r polynomial-sparse-terms (1 7) (0 5)) (polynomial s polynomial-sparse-terms (1 9) (0 -25))) 
-Applying #<procedure:add> on: {7r + 5}, {9s - 25}
-Result: (polynomial s polynomial-sparse-terms (1 9) (0 (polynomial r polynomial-sparse-terms (1 7) (0 (integer . -20)))))
-{9s + {7r - 20}}
-
-Running Test: (#<procedure:add> (polynomial s polynomial-sparse-terms (1 9) (0 -25)) (polynomial t polynomial-sparse-terms (5 1) (4 2) (2 3) (1 -2) (0 -5))) 
-Applying #<procedure:add> on: {9s - 25}, {t^5 + 2t^4 + 3t^2 - 2t - 5}
-Result: (polynomial t polynomial-sparse-terms (5 1) (4 2) (2 3) (1 -2) (0 (polynomial s polynomial-sparse-terms (1 9) (0 (integer . -30)))))
-{t^5 + 2t^4 + 3t^2 - 2t + {9s - 30}}
-
-Running Test: (#<procedure:add> (polynomial t polynomial-sparse-terms (5 1) (4 2) (2 3) (1 -2) (0 -5)) (polynomial u polynomial-sparse-terms (5 2) (4 4) (2 5) (1 -7) (0 -15))) 
-Applying #<procedure:add> on: {t^5 + 2t^4 + 3t^2 - 2t - 5}, {2u^5 + 4u^4 + 5u^2 - 7u - 15}
-Result: (polynomial u polynomial-sparse-terms (5 2) (4 4) (2 5) (1 -7) (0 (polynomial t polynomial-sparse-terms (5 1) (4 2) (2 3) (1 -2) (0 (integer . -20)))))
-{2u^5 + 4u^4 + 5u^2 - 7u + {t^5 + 2t^4 + 3t^2 - 2t - 20}}
-
-Running Test: (#<procedure:add> (polynomial u polynomial-sparse-terms (5 2) (4 4) (2 5) (1 -7) (0 -15)) (polynomial v polynomial-sparse-terms (10 3) (7 4) (5 -11) (1 -7) (0 -15))) 
-Applying #<procedure:add> on: {2u^5 + 4u^4 + 5u^2 - 7u - 15}, {3v^10 + 4v^7 - 11v^5 - 7v - 15}
-Result: (polynomial v polynomial-sparse-terms (10 3) (7 4) (5 -11) (1 -7) (0 (polynomial u polynomial-sparse-terms (5 2) (4 4) (2 5) (1 -7) (0 (integer . -30)))))
-{3v^10 + 4v^7 - 11v^5 - 7v + {2u^5 + 4u^4 + 5u^2 - 7u - 30}}
-
-Running Test: (#<procedure:add> (polynomial v polynomial-sparse-terms (10 3) (7 4) (5 -11) (1 -7) (0 -15)) (polynomial z polynomial-sparse-terms (12 4) (6 13) (5 -12) (1 -7) (0 -15))) 
-Applying #<procedure:add> on: {3v^10 + 4v^7 - 11v^5 - 7v - 15}, {4z^12 + 13z^6 - 12z^5 - 7z - 15}
-Result: (polynomial z polynomial-sparse-terms (12 4) (6 13) (5 -12) (1 -7) (0 (polynomial v polynomial-sparse-terms (10 3) (7 4) (5 -11) (1 -7) (0 (integer . -30)))))
-{4z^12 + 13z^6 - 12z^5 - 7z + {3v^10 + 4v^7 - 11v^5 - 7v - 30}}
-
-
-Running Test: (#<procedure:add> (polynomial q polynomial-dense-terms 0 0) (polynomial q polynomial-dense-terms 0 0)) 
-Applying #<procedure:add> on: {}, {}
-Result: (polynomial q polynomial-dense-terms 0 0)
-{}
-
-Running Test: (#<procedure:add> (polynomial q polynomial-dense-terms 0 0) (polynomial r polynomial-dense-terms 0 5)) 
-Applying #<procedure:add> on: {}, {5}
-Result: (polynomial r polynomial-dense-terms 0 5)
-{5}
-
-Running Test: (#<procedure:add> (polynomial r polynomial-dense-terms 0 5) (polynomial s polynomial-dense-terms 1 3 5)) 
-Applying #<procedure:add> on: {5}, {3s + 5}
-Result: (polynomial s polynomial-sparse-terms (1 3) (0 (polynomial r polynomial-sparse-terms (0 10))))
-{3s + {10}}
-
-Running Test: (#<procedure:add> (polynomial s polynomial-dense-terms 1 3 5) (polynomial t polynomial-dense-terms 1 4 9)) 
-Applying #<procedure:add> on: {3s + 5}, {4t + 9}
-Result: (polynomial t polynomial-sparse-terms (1 4) (0 (polynomial s polynomial-sparse-terms (1 3) (0 14))))
-{4t + {3s + 14}}
-
-Running Test: (#<procedure:add> (polynomial t polynomial-dense-terms 1 4 9) (polynomial u polynomial-dense-terms 2 3 5 23)) 
-Applying #<procedure:add> on: {4t + 9}, {3u^2 + 5u + 23}
-Result: (polynomial u polynomial-sparse-terms (2 3) (1 5) (0 (polynomial t polynomial-sparse-terms (1 4) (0 32))))
-{3u^2 + 5u + {4t + 32}}
-
-Running Test: (#<procedure:add> (polynomial u polynomial-dense-terms 2 3 5 23) (polynomial v polynomial-dense-terms 2 4 9 19)) 
-Applying #<procedure:add> on: {3u^2 + 5u + 23}, {4v^2 + 9v + 19}
-Result: (polynomial v polynomial-sparse-terms (2 4) (1 9) (0 (polynomial u polynomial-sparse-terms (2 3) (1 5) (0 42))))
-{4v^2 + 9v + {3u^2 + 5u + 42}}
-
-Running Test: (#<procedure:add> (polynomial v polynomial-dense-terms 2 4 9 19) (polynomial w polynomial-dense-terms 5 1 2 0 3 -2 -5)) 
-Applying #<procedure:add> on: {4v^2 + 9v + 19}, {w^5 + 2w^4 + 3w^2 - 2w - 5}
-Result: (polynomial w polynomial-sparse-terms (5 1) (4 2) (2 3) (1 -2) (0 (polynomial v polynomial-sparse-terms (2 4) (1 9) (0 14))))
-{w^5 + 2w^4 + 3w^2 - 2w + {4v^2 + 9v + 14}}
-
-Running Test: (#<procedure:add> (polynomial w polynomial-dense-terms 5 1 2 0 3 -2 -5) (polynomial z polynomial-dense-terms 5 2 4 0 5 -7 -15)) 
-Applying #<procedure:add> on: {w^5 + 2w^4 + 3w^2 - 2w - 5}, {2z^5 + 4z^4 + 5z^2 - 7z - 15}
-Result: (polynomial z polynomial-sparse-terms (5 2) (4 4) (2 5) (1 -7) (0 (polynomial w polynomial-sparse-terms (5 1) (4 2) (2 3) (1 -2) (0 (integer . -20)))))
-{2z^5 + 4z^4 + 5z^2 - 7z + {w^5 + 2w^4 + 3w^2 - 2w - 20}}
-
-
-Running Test: (#<procedure:add> (polynomial p polynomial-sparse-terms (0 0)) (polynomial r polynomial-dense-terms 0 5)) 
-Applying #<procedure:add> on: {}, {5}
-Result: (polynomial r polynomial-dense-terms 0 5)
-{5}
-
-Running Test: (#<procedure:add> (polynomial r polynomial-dense-terms 0 5) (polynomial p polynomial-sparse-terms (0 0))) 
-Applying #<procedure:add> on: {5}, {}
-Result: (polynomial r polynomial-dense-terms 0 5)
-{5}
-
-Running Test: (#<procedure:add> (polynomial q polynomial-sparse-terms (0 5)) (polynomial s polynomial-dense-terms 1 3 5)) 
-Applying #<procedure:add> on: {5}, {3s + 5}
-Result: (polynomial s polynomial-sparse-terms (1 3) (0 (polynomial q polynomial-sparse-terms (0 10))))
-{3s + {10}}
-
-Running Test: (#<procedure:add> (polynomial r polynomial-sparse-terms (1 7) (0 5)) (polynomial t polynomial-dense-terms 1 4 9)) 
-Applying #<procedure:add> on: {7r + 5}, {4t + 9}
-Result: (polynomial t polynomial-sparse-terms (1 4) (0 (polynomial r polynomial-sparse-terms (1 7) (0 14))))
-{4t + {7r + 14}}
-
-Running Test: (#<procedure:add> (polynomial s polynomial-sparse-terms (1 9) (0 -25)) (polynomial u polynomial-dense-terms 2 3 5 23)) 
-Applying #<procedure:add> on: {9s - 25}, {3u^2 + 5u + 23}
-Result: (polynomial u polynomial-sparse-terms (2 3) (1 5) (0 (polynomial s polynomial-sparse-terms (1 9) (0 (integer . -2)))))
-{3u^2 + 5u + {9s - 2}}
-
-Running Test: (#<procedure:add> (polynomial t polynomial-sparse-terms (5 1) (4 2) (2 3) (1 -2) (0 -5)) (polynomial v polynomial-dense-terms 2 4 9 19)) 
-Applying #<procedure:add> on: {t^5 + 2t^4 + 3t^2 - 2t - 5}, {4v^2 + 9v + 19}
-Result: (polynomial v polynomial-sparse-terms (2 4) (1 9) (0 (polynomial t polynomial-sparse-terms (5 1) (4 2) (2 3) (1 -2) (0 14))))
-{4v^2 + 9v + {t^5 + 2t^4 + 3t^2 - 2t + 14}}
-
-Running Test: (#<procedure:add> (polynomial u polynomial-sparse-terms (5 2) (4 4) (2 5) (1 -7) (0 -15)) (polynomial w polynomial-dense-terms 5 1 2 0 3 -2 -5)) 
-Applying #<procedure:add> on: {2u^5 + 4u^4 + 5u^2 - 7u - 15}, {w^5 + 2w^4 + 3w^2 - 2w - 5}
-Result: (polynomial w polynomial-sparse-terms (5 1) (4 2) (2 3) (1 -2) (0 (polynomial u polynomial-sparse-terms (5 2) (4 4) (2 5) (1 -7) (0 (integer . -20)))))
-{w^5 + 2w^4 + 3w^2 - 2w + {2u^5 + 4u^4 + 5u^2 - 7u - 20}}
-
-Running Test: (#<procedure:add> (polynomial v polynomial-sparse-terms (10 3) (7 4) (5 -11) (1 -7) (0 -15)) (polynomial z polynomial-dense-terms 5 2 4 0 5 -7 -15)) 
-Applying #<procedure:add> on: {3v^10 + 4v^7 - 11v^5 - 7v - 15}, {2z^5 + 4z^4 + 5z^2 - 7z - 15}
-Result: (polynomial z polynomial-sparse-terms (5 2) (4 4) (2 5) (1 -7) (0 (polynomial v polynomial-sparse-terms (10 3) (7 4) (5 -11) (1 -7) (0 (integer . -30)))))
-{2z^5 + 4z^4 + 5z^2 - 7z + {3v^10 + 4v^7 - 11v^5 - 7v - 30}}
-
-
-Running Test: (#<procedure:add> (polynomial q polynomial-dense-terms 0 0) (polynomial q polynomial-sparse-terms (0 5))) 
-Applying #<procedure:add> on: {}, {5}
-Result: (polynomial q polynomial-sparse-terms (0 5))
-{5}
-
-Running Test: (#<procedure:add> (polynomial q polynomial-sparse-terms (0 5)) (polynomial q polynomial-dense-terms 0 0)) 
-Applying #<procedure:add> on: {5}, {}
-Result: (polynomial q polynomial-sparse-terms (0 5))
-{5}
-
-Running Test: (#<procedure:add> (polynomial r polynomial-dense-terms 0 5) (polynomial r polynomial-sparse-terms (1 7) (0 5))) 
-Applying #<procedure:add> on: {5}, {7r + 5}
-Result: (polynomial r polynomial-sparse-terms (1 7) (0 10))
-{7r + 10}
-
-Running Test: (#<procedure:add> (polynomial s polynomial-dense-terms 1 3 5) (polynomial s polynomial-sparse-terms (1 9) (0 -25))) 
-Applying #<procedure:add> on: {3s + 5}, {9s - 25}
-Result: (polynomial s polynomial-sparse-terms (1 12) (0 (integer . -20)))
-{12s - 20}
-
-Running Test: (#<procedure:add> (polynomial t polynomial-dense-terms 1 4 9) (polynomial t polynomial-sparse-terms (5 1) (4 2) (2 3) (1 -2) (0 -5))) 
-Applying #<procedure:add> on: {4t + 9}, {t^5 + 2t^4 + 3t^2 - 2t - 5}
-Result: (polynomial t polynomial-sparse-terms (5 1) (4 2) (2 3) (1 2) (0 4))
-{t^5 + 2t^4 + 3t^2 + 2t + 4}
-
-Running Test: (#<procedure:add> (polynomial u polynomial-dense-terms 2 3 5 23) (polynomial u polynomial-sparse-terms (5 2) (4 4) (2 5) (1 -7) (0 -15))) 
-Applying #<procedure:add> on: {3u^2 + 5u + 23}, {2u^5 + 4u^4 + 5u^2 - 7u - 15}
-Result: (polynomial u polynomial-sparse-terms (5 2) (4 4) (2 8) (1 (integer . -2)) (0 8))
-{2u^5 + 4u^4 + 8u^2 - 2u + 8}
-
-Running Test: (#<procedure:add> (polynomial v polynomial-dense-terms 2 4 9 19) (polynomial v polynomial-sparse-terms (10 3) (7 4) (5 -11) (1 -7) (0 -15))) 
-Applying #<procedure:add> on: {4v^2 + 9v + 19}, {3v^10 + 4v^7 - 11v^5 - 7v - 15}
-Result: (polynomial v polynomial-sparse-terms (10 3) (7 4) (5 -11) (2 4) (1 2) (0 4))
-{3v^10 + 4v^7 - 11v^5 + 4v^2 + 2v + 4}
-
-Running Test: (#<procedure:add> (polynomial w polynomial-dense-terms 5 1 2 0 3 -2 -5) (polynomial z polynomial-sparse-terms (12 4) (6 13) (5 -12) (1 -7) (0 -15))) 
-Applying #<procedure:add> on: {w^5 + 2w^4 + 3w^2 - 2w - 5}, {4z^12 + 13z^6 - 12z^5 - 7z - 15}
-Result: (polynomial z polynomial-sparse-terms (12 4) (6 13) (5 -12) (1 -7) (0 (polynomial w polynomial-sparse-terms (5 1) (4 2) (2 3) (1 -2) (0 (integer . -20)))))
-{4z^12 + 13z^6 - 12z^5 - 7z + {w^5 + 2w^4 + 3w^2 - 2w - 20}}
-
-
-Running Test: (#<procedure:mul> (polynomial p polynomial-sparse-terms (0 0)) (polynomial p polynomial-sparse-terms (0 0))) 
-Applying #<procedure:mul> on: {}, {}
-Result: (polynomial p)
-{}
-
-Running Test: (#<procedure:mul> (polynomial p polynomial-sparse-terms (0 0)) (polynomial q polynomial-sparse-terms (0 5))) 
-Applying #<procedure:mul> on: {}, {5}
-Result: (polynomial q)
-{}
-
-Running Test: (#<procedure:mul> (polynomial q polynomial-sparse-terms (0 5)) (polynomial q polynomial-sparse-terms (0 5))) 
-Applying #<procedure:mul> on: {5}, {5}
-Result: (polynomial q polynomial-sparse-terms (0 25) (0 0))
-{25}
-
-Running Test: (#<procedure:mul> (polynomial q polynomial-sparse-terms (0 5)) (polynomial r polynomial-sparse-terms (1 7) (0 5))) 
-Applying #<procedure:mul> on: {5}, {7r + 5}
-Result: (polynomial r polynomial-sparse-terms (1 (polynomial q polynomial-sparse-terms (0 35) (0 0))) (0 (polynomial q polynomial-sparse-terms (0 25) (0 0))) (0 0))
-{{35}r + {25}}
-
-Running Test: (#<procedure:mul> (polynomial r polynomial-sparse-terms (1 7) (0 5)) (polynomial s polynomial-sparse-terms (1 9) (0 -25))) 
-Applying #<procedure:mul> on: {7r + 5}, {9s - 25}
-Result: (polynomial s polynomial-sparse-terms (1 (polynomial r polynomial-sparse-terms (1 63) (0 45) (0 0))) (0 (polynomial r polynomial-sparse-terms (1 (integer . -175)) (0 (integer . -125)) (0 0))) (0 0))
-{{63r + 45}s + { - 175r - 125}}
-
-Running Test: (#<procedure:mul> (polynomial s polynomial-sparse-terms (1 9) (0 -25)) (polynomial s polynomial-sparse-terms (1 9) (0 -25))) 
-Applying #<procedure:mul> on: {9s - 25}, {9s - 25}
-Result: (polynomial s polynomial-sparse-terms (2 81) (1 (integer . -450)) (0 625) (0 0))
-{81s^2 - 450s + 625}
-
-Running Test: (#<procedure:mul> (polynomial s polynomial-sparse-terms (1 9) (0 -25)) (polynomial t polynomial-sparse-terms (5 1) (4 2) (2 3) (1 -2) (0 -5))) 
-Applying #<procedure:mul> on: {9s - 25}, {t^5 + 2t^4 + 3t^2 - 2t - 5}
-Result: (polynomial t polynomial-sparse-terms (5 (polynomial s polynomial-sparse-terms (1 9) (0 (integer . -25)) (0 0))) (4 (polynomial s polynomial-sparse-terms (1 18) (0 (integer . -50)) (0 0))) (2 (polynomial s polynomial-sparse-terms (1 27) (0 (integer . -75)) (0 0))) (1 (polynomial s polynomial-sparse-terms (1 (integer . -18)) (0 50) (0 0))) (0 (polynomial s polynomial-sparse-terms (1 (integer . -45)) (0 125) (0 0))) (0 0))
-{{9s - 25}t^5 + {18s - 50}t^4 + {27s - 75}t^2 + { - 18s + 50}t + { - 45s + 125}}
-
-Running Test: (#<procedure:mul> (polynomial t polynomial-sparse-terms (5 1) (4 2) (2 3) (1 -2) (0 -5)) (polynomial u polynomial-sparse-terms (5 2) (4 4) (2 5) (1 -7) (0 -15))) 
-Applying #<procedure:mul> on: {t^5 + 2t^4 + 3t^2 - 2t - 5}, {2u^5 + 4u^4 + 5u^2 - 7u - 15}
-Result: (polynomial u polynomial-sparse-terms (5 (polynomial t polynomial-sparse-terms (5 2) (4 4) (2 6) (1 (integer . -4)) (0 (integer . -10)) (0 0))) (4 (polynomial t polynomial-sparse-terms (5 4) (4 8) (2 12) (1 (integer . -8)) (0 (integer . -20)) (0 0))) (2 (polynomial t polynomial-sparse-terms (5 5) (4 10) (2 15) (1 (integer . -10)) (0 (integer . -25)) (0 0))) (1 (polynomial t polynomial-sparse-terms (5 (integer . -7)) (4 (integer . -14)) (2 (integer . -21)) (1 14) (0 35) (0 0))) (0 (polynomial t polynomial-sparse-terms (5 (integer . -15)) (4 (integer . -30)) (2 (integer . -45)) (1 30) (0 75) (0 0))) (0 0))
-{{2t^5 + 4t^4 + 6t^2 - 4t - 10}u^5 + {4t^5 + 8t^4 + 12t^2 - 8t - 20}u^4 + {5t^5 + 10t^4 + 15t^2 - 10t - 25}u^2 + { - 7t^5 - 14t^4 - 21t^2 + 14t + 35}u + { - 15t^5 - 30t^4 - 45t^2 + 30t + 75}}
-
-Running Test: (#<procedure:mul> (polynomial u polynomial-sparse-terms (5 2) (4 4) (2 5) (1 -7) (0 -15)) (polynomial v polynomial-sparse-terms (10 3) (7 4) (5 -11) (1 -7) (0 -15))) 
-Applying #<procedure:mul> on: {2u^5 + 4u^4 + 5u^2 - 7u - 15}, {3v^10 + 4v^7 - 11v^5 - 7v - 15}
-Result: (polynomial v polynomial-sparse-terms (10 (polynomial u polynomial-sparse-terms (5 6) (4 12) (2 15) (1 (integer . -21)) (0 (integer . -45)) (0 0))) (7 (polynomial u polynomial-sparse-terms (5 8) (4 16) (2 20) (1 (integer . -28)) (0 (integer . -60)) (0 0))) (5 (polynomial u polynomial-sparse-terms (5 (integer . -22)) (4 (integer . -44)) (2 (integer . -55)) (1 77) (0 165) (0 0))) (1 (polynomial u polynomial-sparse-terms (5 (integer . -14)) (4 (integer . -28)) (2 (integer . -35)) (1 49) (0 105) (0 0))) (0 (polynomial u polynomial-sparse-terms (5 (integer . -30)) (4 (integer . -60)) (2 (integer . -75)) (1 105) (0 225) (0 0))) (0 0))
-{{6u^5 + 12u^4 + 15u^2 - 21u - 45}v^10 + {8u^5 + 16u^4 + 20u^2 - 28u - 60}v^7 + { - 22u^5 - 44u^4 - 55u^2 + 77u + 165}v^5 + { - 14u^5 - 28u^4 - 35u^2 + 49u + 105}v + { - 30u^5 - 60u^4 - 75u^2 + 105u + 225}}
-
-Running Test: (#<procedure:mul> (polynomial v polynomial-sparse-terms (10 3) (7 4) (5 -11) (1 -7) (0 -15)) (polynomial z polynomial-sparse-terms (12 4) (6 13) (5 -12) (1 -7) (0 -15))) 
-Applying #<procedure:mul> on: {3v^10 + 4v^7 - 11v^5 - 7v - 15}, {4z^12 + 13z^6 - 12z^5 - 7z - 15}
-Result: (polynomial z polynomial-sparse-terms (12 (polynomial v polynomial-sparse-terms (10 12) (7 16) (5 (integer . -44)) (1 (integer . -28)) (0 (integer . -60)) (0 0))) (6 (polynomial v polynomial-sparse-terms (10 39) (7 52) (5 (integer . -143)) (1 (integer . -91)) (0 (integer . -195)) (0 0))) (5 (polynomial v polynomial-sparse-terms (10 (integer . -36)) (7 (integer . -48)) (5 132) (1 84) (0 180) (0 0))) (1 (polynomial v polynomial-sparse-terms (10 (integer . -21)) (7 (integer . -28)) (5 77) (1 49) (0 105) (0 0))) (0 (polynomial v polynomial-sparse-terms (10 (integer . -45)) (7 (integer . -60)) (5 165) (1 105) (0 225) (0 0))) (0 0))
-{{12v^10 + 16v^7 - 44v^5 - 28v - 60}z^12 + {39v^10 + 52v^7 - 143v^5 - 91v - 195}z^6 + { - 36v^10 - 48v^7 + 132v^5 + 84v + 180}z^5 + { - 21v^10 - 28v^7 + 77v^5 + 49v + 105}z + { - 45v^10 - 60v^7 + 165v^5 + 105v + 225}}
-
-
-Running Test: (#<procedure:mul> (polynomial q polynomial-dense-terms 0 0) (polynomial q polynomial-dense-terms 0 0)) 
-Applying #<procedure:mul> on: {}, {}
-Result: (polynomial q)
-{}
-
-Running Test: (#<procedure:mul> (polynomial q polynomial-dense-terms 0 0) (polynomial r polynomial-dense-terms 0 5)) 
-Applying #<procedure:mul> on: {}, {5}
-Result: (polynomial r)
-{}
-
-Running Test: (#<procedure:mul> (polynomial r polynomial-dense-terms 0 5) (polynomial r polynomial-dense-terms 0 5)) 
-Applying #<procedure:mul> on: {5}, {5}
-Result: (polynomial r polynomial-sparse-terms (0 25) (0 0))
-{25}
-
-Running Test: (#<procedure:mul> (polynomial r polynomial-dense-terms 0 5) (polynomial s polynomial-dense-terms 1 3 5)) 
-Applying #<procedure:mul> on: {5}, {3s + 5}
-Result: (polynomial s polynomial-sparse-terms (1 (polynomial r polynomial-sparse-terms (0 15) (0 0))) (0 (polynomial r polynomial-sparse-terms (0 25) (0 0))) (0 0))
-{{15}s + {25}}
-
-Running Test: (#<procedure:mul> (polynomial s polynomial-dense-terms 1 3 5) (polynomial t polynomial-dense-terms 1 4 9)) 
-Applying #<procedure:mul> on: {3s + 5}, {4t + 9}
-Result: (polynomial t polynomial-sparse-terms (1 (polynomial s polynomial-sparse-terms (1 12) (0 20) (0 0))) (0 (polynomial s polynomial-sparse-terms (1 27) (0 45) (0 0))) (0 0))
-{{12s + 20}t + {27s + 45}}
-
-Running Test: (#<procedure:mul> (polynomial t polynomial-dense-terms 1 4 9) (polynomial u polynomial-dense-terms 2 3 5 23)) 
-Applying #<procedure:mul> on: {4t + 9}, {3u^2 + 5u + 23}
-Result: (polynomial u polynomial-sparse-terms (2 (polynomial t polynomial-sparse-terms (1 12) (0 27) (0 0))) (1 (polynomial t polynomial-sparse-terms (1 20) (0 45) (0 0))) (0 (polynomial t polynomial-sparse-terms (1 92) (0 207) (0 0))) (0 0))
-{{12t + 27}u^2 + {20t + 45}u + {92t + 207}}
-
-Running Test: (#<procedure:mul> (polynomial u polynomial-dense-terms 2 3 5 23) (polynomial v polynomial-dense-terms 2 4 9 19)) 
-Applying #<procedure:mul> on: {3u^2 + 5u + 23}, {4v^2 + 9v + 19}
-Result: (polynomial v polynomial-sparse-terms (2 (polynomial u polynomial-sparse-terms (2 12) (1 20) (0 92) (0 0))) (1 (polynomial u polynomial-sparse-terms (2 27) (1 45) (0 207) (0 0))) (0 (polynomial u polynomial-sparse-terms (2 57) (1 95) (0 437) (0 0))) (0 0))
-{{12u^2 + 20u + 92}v^2 + {27u^2 + 45u + 207}v + {57u^2 + 95u + 437}}
-
-Running Test: (#<procedure:mul> (polynomial v polynomial-dense-terms 2 4 9 19) (polynomial w polynomial-dense-terms 5 1 2 0 3 -2 -5)) 
-Applying #<procedure:mul> on: {4v^2 + 9v + 19}, {w^5 + 2w^4 + 3w^2 - 2w - 5}
-Result: (polynomial w polynomial-sparse-terms (5 (polynomial v polynomial-sparse-terms (2 4) (1 9) (0 19) (0 0))) (4 (polynomial v polynomial-sparse-terms (2 8) (1 18) (0 38) (0 0))) (2 (polynomial v polynomial-sparse-terms (2 12) (1 27) (0 57) (0 0))) (1 (polynomial v polynomial-sparse-terms (2 (integer . -8)) (1 (integer . -18)) (0 (integer . -38)) (0 0))) (0 (polynomial v polynomial-sparse-terms (2 (integer . -20)) (1 (integer . -45)) (0 (integer . -95)) (0 0))) (0 0))
-{{4v^2 + 9v + 19}w^5 + {8v^2 + 18v + 38}w^4 + {12v^2 + 27v + 57}w^2 + { - 8v^2 - 18v - 38}w + { - 20v^2 - 45v - 95}}
-
-Running Test: (#<procedure:mul> (polynomial w polynomial-dense-terms 5 1 2 0 3 -2 -5) (polynomial z polynomial-dense-terms 5 2 4 0 5 -7 -15)) 
-Applying #<procedure:mul> on: {w^5 + 2w^4 + 3w^2 - 2w - 5}, {2z^5 + 4z^4 + 5z^2 - 7z - 15}
-Result: (polynomial z polynomial-sparse-terms (5 (polynomial w polynomial-sparse-terms (5 2) (4 4) (2 6) (1 (integer . -4)) (0 (integer . -10)) (0 0))) (4 (polynomial w polynomial-sparse-terms (5 4) (4 8) (2 12) (1 (integer . -8)) (0 (integer . -20)) (0 0))) (2 (polynomial w polynomial-sparse-terms (5 5) (4 10) (2 15) (1 (integer . -10)) (0 (integer . -25)) (0 0))) (1 (polynomial w polynomial-sparse-terms (5 (integer . -7)) (4 (integer . -14)) (2 (integer . -21)) (1 14) (0 35) (0 0))) (0 (polynomial w polynomial-sparse-terms (5 (integer . -15)) (4 (integer . -30)) (2 (integer . -45)) (1 30) (0 75) (0 0))) (0 0))
-{{2w^5 + 4w^4 + 6w^2 - 4w - 10}z^5 + {4w^5 + 8w^4 + 12w^2 - 8w - 20}z^4 + {5w^5 + 10w^4 + 15w^2 - 10w - 25}z^2 + { - 7w^5 - 14w^4 - 21w^2 + 14w + 35}z + { - 15w^5 - 30w^4 - 45w^2 + 30w + 75}}
-
-
-Running Test: (#<procedure:mul> (polynomial p polynomial-sparse-terms (0 0)) (polynomial r polynomial-dense-terms 0 5)) 
-Applying #<procedure:mul> on: {}, {5}
-Result: (polynomial r)
-{}
-
-Running Test: (#<procedure:mul> (polynomial r polynomial-dense-terms 0 5) (polynomial p polynomial-sparse-terms (0 0))) 
-Applying #<procedure:mul> on: {5}, {}
-Result: (polynomial r)
-{}
-
-Running Test: (#<procedure:mul> (polynomial q polynomial-sparse-terms (0 5)) (polynomial s polynomial-dense-terms 1 3 5)) 
-Applying #<procedure:mul> on: {5}, {3s + 5}
-Result: (polynomial s polynomial-sparse-terms (1 (polynomial q polynomial-sparse-terms (0 15) (0 0))) (0 (polynomial q polynomial-sparse-terms (0 25) (0 0))) (0 0))
-{{15}s + {25}}
-
-Running Test: (#<procedure:mul> (polynomial r polynomial-sparse-terms (1 7) (0 5)) (polynomial t polynomial-dense-terms 1 4 9)) 
-Applying #<procedure:mul> on: {7r + 5}, {4t + 9}
-Result: (polynomial t polynomial-sparse-terms (1 (polynomial r polynomial-sparse-terms (1 28) (0 20) (0 0))) (0 (polynomial r polynomial-sparse-terms (1 63) (0 45) (0 0))) (0 0))
-{{28r + 20}t + {63r + 45}}
-
-Running Test: (#<procedure:mul> (polynomial s polynomial-sparse-terms (1 9) (0 -25)) (polynomial u polynomial-dense-terms 2 3 5 23)) 
-Applying #<procedure:mul> on: {9s - 25}, {3u^2 + 5u + 23}
-Result: (polynomial u polynomial-sparse-terms (2 (polynomial s polynomial-sparse-terms (1 27) (0 (integer . -75)) (0 0))) (1 (polynomial s polynomial-sparse-terms (1 45) (0 (integer . -125)) (0 0))) (0 (polynomial s polynomial-sparse-terms (1 207) (0 (integer . -575)) (0 0))) (0 0))
-{{27s - 75}u^2 + {45s - 125}u + {207s - 575}}
-
-Running Test: (#<procedure:mul> (polynomial t polynomial-sparse-terms (5 1) (4 2) (2 3) (1 -2) (0 -5)) (polynomial v polynomial-dense-terms 2 4 9 19)) 
-Applying #<procedure:mul> on: {t^5 + 2t^4 + 3t^2 - 2t - 5}, {4v^2 + 9v + 19}
-Result: (polynomial v polynomial-sparse-terms (2 (polynomial t polynomial-sparse-terms (5 4) (4 8) (2 12) (1 (integer . -8)) (0 (integer . -20)) (0 0))) (1 (polynomial t polynomial-sparse-terms (5 9) (4 18) (2 27) (1 (integer . -18)) (0 (integer . -45)) (0 0))) (0 (polynomial t polynomial-sparse-terms (5 19) (4 38) (2 57) (1 (integer . -38)) (0 (integer . -95)) (0 0))) (0 0))
-{{4t^5 + 8t^4 + 12t^2 - 8t - 20}v^2 + {9t^5 + 18t^4 + 27t^2 - 18t - 45}v + {19t^5 + 38t^4 + 57t^2 - 38t - 95}}
-
-Running Test: (#<procedure:mul> (polynomial u polynomial-sparse-terms (5 2) (4 4) (2 5) (1 -7) (0 -15)) (polynomial w polynomial-dense-terms 5 1 2 0 3 -2 -5)) 
-Applying #<procedure:mul> on: {2u^5 + 4u^4 + 5u^2 - 7u - 15}, {w^5 + 2w^4 + 3w^2 - 2w - 5}
-Result: (polynomial w polynomial-sparse-terms (5 (polynomial u polynomial-sparse-terms (5 2) (4 4) (2 5) (1 (integer . -7)) (0 (integer . -15)) (0 0))) (4 (polynomial u polynomial-sparse-terms (5 4) (4 8) (2 10) (1 (integer . -14)) (0 (integer . -30)) (0 0))) (2 (polynomial u polynomial-sparse-terms (5 6) (4 12) (2 15) (1 (integer . -21)) (0 (integer . -45)) (0 0))) (1 (polynomial u polynomial-sparse-terms (5 (integer . -4)) (4 (integer . -8)) (2 (integer . -10)) (1 14) (0 30) (0 0))) (0 (polynomial u polynomial-sparse-terms (5 (integer . -10)) (4 (integer . -20)) (2 (integer . -25)) (1 35) (0 75) (0 0))) (0 0))
-{{2u^5 + 4u^4 + 5u^2 - 7u - 15}w^5 + {4u^5 + 8u^4 + 10u^2 - 14u - 30}w^4 + {6u^5 + 12u^4 + 15u^2 - 21u - 45}w^2 + { - 4u^5 - 8u^4 - 10u^2 + 14u + 30}w + { - 10u^5 - 20u^4 - 25u^2 + 35u + 75}}
-
-Running Test: (#<procedure:mul> (polynomial v polynomial-sparse-terms (10 3) (7 4) (5 -11) (1 -7) (0 -15)) (polynomial z polynomial-dense-terms 5 2 4 0 5 -7 -15)) 
-Applying #<procedure:mul> on: {3v^10 + 4v^7 - 11v^5 - 7v - 15}, {2z^5 + 4z^4 + 5z^2 - 7z - 15}
-Result: (polynomial z polynomial-sparse-terms (5 (polynomial v polynomial-sparse-terms (10 6) (7 8) (5 (integer . -22)) (1 (integer . -14)) (0 (integer . -30)) (0 0))) (4 (polynomial v polynomial-sparse-terms (10 12) (7 16) (5 (integer . -44)) (1 (integer . -28)) (0 (integer . -60)) (0 0))) (2 (polynomial v polynomial-sparse-terms (10 15) (7 20) (5 (integer . -55)) (1 (integer . -35)) (0 (integer . -75)) (0 0))) (1 (polynomial v polynomial-sparse-terms (10 (integer . -21)) (7 (integer . -28)) (5 77) (1 49) (0 105) (0 0))) (0 (polynomial v polynomial-sparse-terms (10 (integer . -45)) (7 (integer . -60)) (5 165) (1 105) (0 225) (0 0))) (0 0))
-{{6v^10 + 8v^7 - 22v^5 - 14v - 30}z^5 + {12v^10 + 16v^7 - 44v^5 - 28v - 60}z^4 + {15v^10 + 20v^7 - 55v^5 - 35v - 75}z^2 + { - 21v^10 - 28v^7 + 77v^5 + 49v + 105}z + { - 45v^10 - 60v^7 + 165v^5 + 105v + 225}}
-
-
-Running Test: (#<procedure:mul> (polynomial q polynomial-dense-terms 0 0) (polynomial q polynomial-sparse-terms (0 5))) 
-Applying #<procedure:mul> on: {}, {5}
-Result: (polynomial q)
-{}
-
-Running Test: (#<procedure:mul> (polynomial q polynomial-sparse-terms (0 5)) (polynomial q polynomial-dense-terms 0 0)) 
-Applying #<procedure:mul> on: {5}, {}
-Result: (polynomial q)
-{}
-
-Running Test: (#<procedure:mul> (polynomial r polynomial-dense-terms 0 5) (polynomial r polynomial-sparse-terms (1 7) (0 5))) 
-Applying #<procedure:mul> on: {5}, {7r + 5}
-Result: (polynomial r polynomial-sparse-terms (1 35) (0 25) (0 0))
-{35r + 25}
-
-Running Test: (#<procedure:mul> (polynomial s polynomial-dense-terms 1 3 5) (polynomial s polynomial-sparse-terms (1 9) (0 -25))) 
-Applying #<procedure:mul> on: {3s + 5}, {9s - 25}
-Result: (polynomial s polynomial-sparse-terms (2 27) (1 (integer . -30)) (0 (integer . -125)) (0 0))
-{27s^2 - 30s - 125}
-
-Running Test: (#<procedure:mul> (polynomial t polynomial-dense-terms 1 4 9) (polynomial t polynomial-sparse-terms (5 1) (4 2) (2 3) (1 -2) (0 -5))) 
-Applying #<procedure:mul> on: {4t + 9}, {t^5 + 2t^4 + 3t^2 - 2t - 5}
-Result: (polynomial t polynomial-sparse-terms (6 4) (5 17) (4 18) (3 12) (2 19) (1 (integer . -38)) (0 (integer . -45)) (0 0))
-{4t^6 + 17t^5 + 18t^4 + 12t^3 + 19t^2 - 38t - 45}
-
-Running Test: (#<procedure:mul> (polynomial u polynomial-dense-terms 2 3 5 23) (polynomial u polynomial-sparse-terms (5 2) (4 4) (2 5) (1 -7) (0 -15))) 
-Applying #<procedure:mul> on: {3u^2 + 5u + 23}, {2u^5 + 4u^4 + 5u^2 - 7u - 15}
-Result: (polynomial u polynomial-sparse-terms (7 6) (6 22) (5 66) (4 107) (3 4) (2 35) (1 (integer . -236)) (0 (integer . -345)) (0 0))
-{6u^7 + 22u^6 + 66u^5 + 107u^4 + 4u^3 + 35u^2 - 236u - 345}
-
-Running Test: (#<procedure:mul> (polynomial v polynomial-dense-terms 2 4 9 19) (polynomial v polynomial-sparse-terms (10 3) (7 4) (5 -11) (1 -7) (0 -15))) 
-Applying #<procedure:mul> on: {4v^2 + 9v + 19}, {3v^10 + 4v^7 - 11v^5 - 7v - 15}
-Result: (polynomial v polynomial-sparse-terms (12 12) (11 27) (10 57) (9 16) (8 36) (7 32) (6 (integer . -99)) (5 (integer . -209)) (3 (integer . -28)) (2 (integer . -123)) (1 (integer . -268)) (0 (integer . -285)) (0 0))
-{12v^12 + 27v^11 + 57v^10 + 16v^9 + 36v^8 + 32v^7 - 99v^6 - 209v^5 - 28v^3 - 123v^2 - 268v - 285}
-
-Running Test: (#<procedure:mul> (polynomial w polynomial-dense-terms 5 1 2 0 3 -2 -5) (polynomial z polynomial-sparse-terms (12 4) (6 13) (5 -12) (1 -7) (0 -15))) 
-Applying #<procedure:mul> on: {w^5 + 2w^4 + 3w^2 - 2w - 5}, {4z^12 + 13z^6 - 12z^5 - 7z - 15}
-Result: (polynomial z polynomial-sparse-terms (12 (polynomial w polynomial-sparse-terms (5 4) (4 8) (2 12) (1 (integer . -8)) (0 (integer . -20)) (0 0))) (6 (polynomial w polynomial-sparse-terms (5 13) (4 26) (2 39) (1 (integer . -26)) (0 (integer . -65)) (0 0))) (5 (polynomial w polynomial-sparse-terms (5 (integer . -12)) (4 (integer . -24)) (2 (integer . -36)) (1 24) (0 60) (0 0))) (1 (polynomial w polynomial-sparse-terms (5 (integer . -7)) (4 (integer . -14)) (2 (integer . -21)) (1 14) (0 35) (0 0))) (0 (polynomial w polynomial-sparse-terms (5 (integer . -15)) (4 (integer . -30)) (2 (integer . -45)) (1 30) (0 75) (0 0))) (0 0))
-{{4w^5 + 8w^4 + 12w^2 - 8w - 20}z^12 + {13w^5 + 26w^4 + 39w^2 - 26w - 65}z^6 + { - 12w^5 - 24w^4 - 36w^2 + 24w + 60}z^5 + { - 7w^5 - 14w^4 - 21w^2 + 14w + 35}z + { - 15w^5 - 30w^4 - 45w^2 + 30w + 75}}
-
-
-Running Test: (#<procedure:NEGATE> (polynomial p polynomial-sparse-terms (0 0))) 
-Applying #<procedure:NEGATE> on: {}
-Result: (polynomial p polynomial-sparse-terms (0 0))
-{}
-
-Running Test: (#<procedure:NEGATE> (polynomial q polynomial-sparse-terms (0 5))) 
-Applying #<procedure:NEGATE> on: {5}
-Result: (polynomial q polynomial-sparse-terms (0 (integer . -5)))
-{ - 5}
-
-Running Test: (#<procedure:NEGATE> (polynomial q polynomial-sparse-terms (0 5))) 
-Applying #<procedure:NEGATE> on: {5}
-Result: (polynomial q polynomial-sparse-terms (0 (integer . -5)))
-{ - 5}
-
-Running Test: (#<procedure:NEGATE> (polynomial r polynomial-sparse-terms (1 7) (0 5))) 
-Applying #<procedure:NEGATE> on: {7r + 5}
-Result: (polynomial r polynomial-sparse-terms (1 (integer . -7)) (0 (integer . -5)))
-{ - 7r - 5}
-
-Running Test: (#<procedure:NEGATE> (polynomial s polynomial-sparse-terms (1 9) (0 -25))) 
-Applying #<procedure:NEGATE> on: {9s - 25}
-Result: (polynomial s polynomial-sparse-terms (1 (integer . -9)) (0 25))
-{ - 9s + 25}
-
-Running Test: (#<procedure:NEGATE> (polynomial t polynomial-sparse-terms (5 1) (4 2) (2 3) (1 -2) (0 -5))) 
-Applying #<procedure:NEGATE> on: {t^5 + 2t^4 + 3t^2 - 2t - 5}
-Result: (polynomial t polynomial-sparse-terms (5 (integer . -1)) (4 (integer . -2)) (2 (integer . -3)) (1 2) (0 5))
-{ - 1t^5 - 2t^4 - 3t^2 + 2t + 5}
-
-Running Test: (#<procedure:NEGATE> (polynomial u polynomial-sparse-terms (5 2) (4 4) (2 5) (1 -7) (0 -15))) 
-Applying #<procedure:NEGATE> on: {2u^5 + 4u^4 + 5u^2 - 7u - 15}
-Result: (polynomial u polynomial-sparse-terms (5 (integer . -2)) (4 (integer . -4)) (2 (integer . -5)) (1 7) (0 15))
-{ - 2u^5 - 4u^4 - 5u^2 + 7u + 15}
-
-Running Test: (#<procedure:NEGATE> (polynomial v polynomial-sparse-terms (10 3) (7 4) (5 -11) (1 -7) (0 -15))) 
-Applying #<procedure:NEGATE> on: {3v^10 + 4v^7 - 11v^5 - 7v - 15}
-Result: (polynomial v polynomial-sparse-terms (10 (integer . -3)) (7 (integer . -4)) (5 11) (1 7) (0 15))
-{ - 3v^10 - 4v^7 + 11v^5 + 7v + 15}
-
-Running Test: (#<procedure:NEGATE> (polynomial z polynomial-sparse-terms (12 4) (6 13) (5 -12) (1 -7) (0 -15))) 
-Applying #<procedure:NEGATE> on: {4z^12 + 13z^6 - 12z^5 - 7z - 15}
-Result: (polynomial z polynomial-sparse-terms (12 (integer . -4)) (6 (integer . -13)) (5 12) (1 7) (0 15))
-{ - 4z^12 - 13z^6 + 12z^5 + 7z + 15}
-
-
-Running Test: (#<procedure:NEGATE> (polynomial q polynomial-dense-terms 0 0)) 
-Applying #<procedure:NEGATE> on: {}
-Result: (polynomial q polynomial-dense-terms 0 0)
-{}
-
-Running Test: (#<procedure:NEGATE> (polynomial r polynomial-dense-terms 0 5)) 
-Applying #<procedure:NEGATE> on: {5}
-Result: (polynomial r polynomial-dense-terms 0 (integer . -5))
-{ - 5}
-
-Running Test: (#<procedure:NEGATE> (polynomial r polynomial-dense-terms 0 5)) 
-Applying #<procedure:NEGATE> on: {5}
-Result: (polynomial r polynomial-dense-terms 0 (integer . -5))
-{ - 5}
-
-Running Test: (#<procedure:NEGATE> (polynomial s polynomial-dense-terms 1 3 5)) 
-Applying #<procedure:NEGATE> on: {3s + 5}
-Result: (polynomial s polynomial-dense-terms 1 (integer . -3) (integer . -5))
-{ - 3s - 5}
-
-Running Test: (#<procedure:NEGATE> (polynomial t polynomial-dense-terms 1 4 9)) 
-Applying #<procedure:NEGATE> on: {4t + 9}
-Result: (polynomial t polynomial-dense-terms 1 (integer . -4) (integer . -9))
-{ - 4t - 9}
-
-Running Test: (#<procedure:NEGATE> (polynomial u polynomial-dense-terms 2 3 5 23)) 
-Applying #<procedure:NEGATE> on: {3u^2 + 5u + 23}
-Result: (polynomial u polynomial-dense-terms 2 (integer . -3) (integer . -5) (integer . -23))
-{ - 3u^2 - 5u - 23}
-
-Running Test: (#<procedure:NEGATE> (polynomial v polynomial-dense-terms 2 4 9 19)) 
-Applying #<procedure:NEGATE> on: {4v^2 + 9v + 19}
-Result: (polynomial v polynomial-dense-terms 2 (integer . -4) (integer . -9) (integer . -19))
-{ - 4v^2 - 9v - 19}
-
-Running Test: (#<procedure:NEGATE> (polynomial w polynomial-dense-terms 5 1 2 0 3 -2 -5)) 
-Applying #<procedure:NEGATE> on: {w^5 + 2w^4 + 3w^2 - 2w - 5}
-Result: (polynomial w polynomial-dense-terms 5 (integer . -1) (integer . -2) 0 (integer . -3) 2 5)
-{ - 1w^5 - 2w^4 - 3w^2 + 2w + 5}
-
-Running Test: (#<procedure:NEGATE> (polynomial z polynomial-dense-terms 5 2 4 0 5 -7 -15)) 
-Applying #<procedure:NEGATE> on: {2z^5 + 4z^4 + 5z^2 - 7z - 15}
-Result: (polynomial z polynomial-dense-terms 5 (integer . -2) (integer . -4) 0 (integer . -5) 7 15)
-{ - 2z^5 - 4z^4 - 5z^2 + 7z + 15}
-
-Running Test: (#<procedure:sub> (polynomial p polynomial-sparse-terms (0 0)) (polynomial p polynomial-sparse-terms (0 0))) 
-Applying #<procedure:sub> on: {}, {}
-Result: (polynomial p polynomial-sparse-terms (0 0))
-{}
-
-Running Test: (#<procedure:sub> (polynomial p polynomial-sparse-terms (0 0)) (polynomial q polynomial-sparse-terms (0 5))) 
-Applying #<procedure:sub> on: {}, {5}
-Result: (polynomial q polynomial-sparse-terms (0 (integer . -5)))
-{ - 5}
-
-Running Test: (#<procedure:sub> (polynomial q polynomial-sparse-terms (0 5)) (polynomial q polynomial-sparse-terms (0 5))) 
-Applying #<procedure:sub> on: {5}, {5}
-Result: (polynomial q polynomial-sparse-terms)
-{}
-
-Running Test: (#<procedure:sub> (polynomial q polynomial-sparse-terms (0 5)) (polynomial r polynomial-sparse-terms (1 7) (0 5))) 
-Applying #<procedure:sub> on: {5}, {7r + 5}
-Result: (polynomial r polynomial-sparse-terms (1 (integer . -7)))
-{ - 7r}
-
-Running Test: (#<procedure:sub> (polynomial r polynomial-sparse-terms (1 7) (0 5)) (polynomial s polynomial-sparse-terms (1 9) (0 -25))) 
-Applying #<procedure:sub> on: {7r + 5}, {9s - 25}
-Result: (polynomial s polynomial-sparse-terms (1 (integer . -9)) (0 (polynomial r polynomial-sparse-terms (1 7) (0 30))))
-{ - 9s + {7r + 30}}
-
-Running Test: (#<procedure:sub> (polynomial s polynomial-sparse-terms (1 9) (0 -25)) (polynomial t polynomial-sparse-terms (5 1) (4 2) (2 3) (1 -2) (0 -5))) 
-Applying #<procedure:sub> on: {9s - 25}, {t^5 + 2t^4 + 3t^2 - 2t - 5}
-Result: (polynomial t polynomial-sparse-terms (5 (integer . -1)) (4 (integer . -2)) (2 (integer . -3)) (1 2) (0 (polynomial s polynomial-sparse-terms (1 9) (0 (integer . -20)))))
-{ - 1t^5 - 2t^4 - 3t^2 + 2t + {9s - 20}}
-
-Running Test: (#<procedure:sub> (polynomial t polynomial-sparse-terms (5 1) (4 2) (2 3) (1 -2) (0 -5)) (polynomial u polynomial-sparse-terms (5 2) (4 4) (2 5) (1 -7) (0 -15))) 
-Applying #<procedure:sub> on: {t^5 + 2t^4 + 3t^2 - 2t - 5}, {2u^5 + 4u^4 + 5u^2 - 7u - 15}
-Result: (polynomial u polynomial-sparse-terms (5 (integer . -2)) (4 (integer . -4)) (2 (integer . -5)) (1 7) (0 (polynomial t polynomial-sparse-terms (5 1) (4 2) (2 3) (1 -2) (0 10))))
-{ - 2u^5 - 4u^4 - 5u^2 + 7u + {t^5 + 2t^4 + 3t^2 - 2t + 10}}
-
-Running Test: (#<procedure:sub> (polynomial u polynomial-sparse-terms (5 2) (4 4) (2 5) (1 -7) (0 -15)) (polynomial v polynomial-sparse-terms (10 3) (7 4) (5 -11) (1 -7) (0 -15))) 
-Applying #<procedure:sub> on: {2u^5 + 4u^4 + 5u^2 - 7u - 15}, {3v^10 + 4v^7 - 11v^5 - 7v - 15}
-Result: (polynomial v polynomial-sparse-terms (10 (integer . -3)) (7 (integer . -4)) (5 11) (1 7) (0 (polynomial u polynomial-sparse-terms (5 2) (4 4) (2 5) (1 -7))))
-{ - 3v^10 - 4v^7 + 11v^5 + 7v + {2u^5 + 4u^4 + 5u^2 - 7u}}
-
-Running Test: (#<procedure:sub> (polynomial v polynomial-sparse-terms (10 3) (7 4) (5 -11) (1 -7) (0 -15)) (polynomial z polynomial-sparse-terms (12 4) (6 13) (5 -12) (1 -7) (0 -15))) 
-Applying #<procedure:sub> on: {3v^10 + 4v^7 - 11v^5 - 7v - 15}, {4z^12 + 13z^6 - 12z^5 - 7z - 15}
-Result: (polynomial z polynomial-sparse-terms (12 (integer . -4)) (6 (integer . -13)) (5 12) (1 7) (0 (polynomial v polynomial-sparse-terms (10 3) (7 4) (5 -11) (1 -7))))
-{ - 4z^12 - 13z^6 + 12z^5 + 7z + {3v^10 + 4v^7 - 11v^5 - 7v}}
-
-
-Running Test: (#<procedure:sub> (polynomial q polynomial-dense-terms 0 0) (polynomial q polynomial-dense-terms 0 0)) 
-Applying #<procedure:sub> on: {}, {}
-Result: (polynomial q polynomial-dense-terms 0 0)
-{}
-
-Running Test: (#<procedure:sub> (polynomial q polynomial-dense-terms 0 0) (polynomial r polynomial-dense-terms 0 5)) 
-Applying #<procedure:sub> on: {}, {5}
-Result: (polynomial r polynomial-dense-terms 0 (integer . -5))
-{ - 5}
-
-Running Test: (#<procedure:sub> (polynomial r polynomial-dense-terms 0 5) (polynomial r polynomial-dense-terms 0 5)) 
-Applying #<procedure:sub> on: {5}, {5}
-Result: (polynomial r polynomial-dense-terms)
-{}
-
-Running Test: (#<procedure:sub> (polynomial r polynomial-dense-terms 0 5) (polynomial s polynomial-dense-terms 1 3 5)) 
-Applying #<procedure:sub> on: {5}, {3s + 5}
-Result: (polynomial s polynomial-sparse-terms (1 (integer . -3)))
-{ - 3s}
-
-Running Test: (#<procedure:sub> (polynomial s polynomial-dense-terms 1 3 5) (polynomial t polynomial-dense-terms 1 4 9)) 
-Applying #<procedure:sub> on: {3s + 5}, {4t + 9}
-Result: (polynomial t polynomial-sparse-terms (1 (integer . -4)) (0 (polynomial s polynomial-sparse-terms (1 3) (0 (integer . -4)))))
-{ - 4t + {3s - 4}}
-
-Running Test: (#<procedure:sub> (polynomial t polynomial-dense-terms 1 4 9) (polynomial u polynomial-dense-terms 2 3 5 23)) 
-Applying #<procedure:sub> on: {4t + 9}, {3u^2 + 5u + 23}
-Result: (polynomial u polynomial-sparse-terms (2 (integer . -3)) (1 (integer . -5)) (0 (polynomial t polynomial-sparse-terms (1 4) (0 (integer . -14)))))
-{ - 3u^2 - 5u + {4t - 14}}
-
-Running Test: (#<procedure:sub> (polynomial u polynomial-dense-terms 2 3 5 23) (polynomial v polynomial-dense-terms 2 4 9 19)) 
-Applying #<procedure:sub> on: {3u^2 + 5u + 23}, {4v^2 + 9v + 19}
-Result: (polynomial v polynomial-sparse-terms (2 (integer . -4)) (1 (integer . -9)) (0 (polynomial u polynomial-sparse-terms (2 3) (1 5) (0 4))))
-{ - 4v^2 - 9v + {3u^2 + 5u + 4}}
-
-Running Test: (#<procedure:sub> (polynomial v polynomial-dense-terms 2 4 9 19) (polynomial w polynomial-dense-terms 5 1 2 0 3 -2 -5)) 
-Applying #<procedure:sub> on: {4v^2 + 9v + 19}, {w^5 + 2w^4 + 3w^2 - 2w - 5}
-Result: (polynomial w polynomial-sparse-terms (5 (integer . -1)) (4 (integer . -2)) (2 (integer . -3)) (1 2) (0 (polynomial v polynomial-sparse-terms (2 4) (1 9) (0 24))))
-{ - 1w^5 - 2w^4 - 3w^2 + 2w + {4v^2 + 9v + 24}}
-
-Running Test: (#<procedure:sub> (polynomial w polynomial-dense-terms 5 1 2 0 3 -2 -5) (polynomial z polynomial-dense-terms 5 2 4 0 5 -7 -15)) 
-Applying #<procedure:sub> on: {w^5 + 2w^4 + 3w^2 - 2w - 5}, {2z^5 + 4z^4 + 5z^2 - 7z - 15}
-Result: (polynomial z polynomial-sparse-terms (5 (integer . -2)) (4 (integer . -4)) (2 (integer . -5)) (1 7) (0 (polynomial w polynomial-sparse-terms (5 1) (4 2) (2 3) (1 -2) (0 10))))
-{ - 2z^5 - 4z^4 - 5z^2 + 7z + {w^5 + 2w^4 + 3w^2 - 2w + 10}}
-
-
-Running Test: (#<procedure:sub> (polynomial p polynomial-sparse-terms (0 0)) (polynomial r polynomial-dense-terms 0 5)) 
-Applying #<procedure:sub> on: {}, {5}
-Result: (polynomial r polynomial-dense-terms 0 (integer . -5))
-{ - 5}
-
-Running Test: (#<procedure:sub> (polynomial r polynomial-dense-terms 0 5) (polynomial p polynomial-sparse-terms (0 0))) 
-Applying #<procedure:sub> on: {5}, {}
-Result: (polynomial r polynomial-dense-terms 0 5)
-{5}
-
-Running Test: (#<procedure:sub> (polynomial q polynomial-sparse-terms (0 5)) (polynomial s polynomial-dense-terms 1 3 5)) 
-Applying #<procedure:sub> on: {5}, {3s + 5}
-Result: (polynomial s polynomial-sparse-terms (1 (integer . -3)))
-{ - 3s}
-
-Running Test: (#<procedure:sub> (polynomial r polynomial-sparse-terms (1 7) (0 5)) (polynomial t polynomial-dense-terms 1 4 9)) 
-Applying #<procedure:sub> on: {7r + 5}, {4t + 9}
-Result: (polynomial t polynomial-sparse-terms (1 (integer . -4)) (0 (polynomial r polynomial-sparse-terms (1 7) (0 (integer . -4)))))
-{ - 4t + {7r - 4}}
-
-Running Test: (#<procedure:sub> (polynomial s polynomial-sparse-terms (1 9) (0 -25)) (polynomial u polynomial-dense-terms 2 3 5 23)) 
-Applying #<procedure:sub> on: {9s - 25}, {3u^2 + 5u + 23}
-Result: (polynomial u polynomial-sparse-terms (2 (integer . -3)) (1 (integer . -5)) (0 (polynomial s polynomial-sparse-terms (1 9) (0 (integer . -48)))))
-{ - 3u^2 - 5u + {9s - 48}}
-
-Running Test: (#<procedure:sub> (polynomial t polynomial-sparse-terms (5 1) (4 2) (2 3) (1 -2) (0 -5)) (polynomial v polynomial-dense-terms 2 4 9 19)) 
-Applying #<procedure:sub> on: {t^5 + 2t^4 + 3t^2 - 2t - 5}, {4v^2 + 9v + 19}
-Result: (polynomial v polynomial-sparse-terms (2 (integer . -4)) (1 (integer . -9)) (0 (polynomial t polynomial-sparse-terms (5 1) (4 2) (2 3) (1 -2) (0 (integer . -24)))))
-{ - 4v^2 - 9v + {t^5 + 2t^4 + 3t^2 - 2t - 24}}
-
-Running Test: (#<procedure:sub> (polynomial u polynomial-sparse-terms (5 2) (4 4) (2 5) (1 -7) (0 -15)) (polynomial w polynomial-dense-terms 5 1 2 0 3 -2 -5)) 
-Applying #<procedure:sub> on: {2u^5 + 4u^4 + 5u^2 - 7u - 15}, {w^5 + 2w^4 + 3w^2 - 2w - 5}
-Result: (polynomial w polynomial-sparse-terms (5 (integer . -1)) (4 (integer . -2)) (2 (integer . -3)) (1 2) (0 (polynomial u polynomial-sparse-terms (5 2) (4 4) (2 5) (1 -7) (0 (integer . -10)))))
-{ - 1w^5 - 2w^4 - 3w^2 + 2w + {2u^5 + 4u^4 + 5u^2 - 7u - 10}}
-
-Running Test: (#<procedure:sub> (polynomial v polynomial-sparse-terms (10 3) (7 4) (5 -11) (1 -7) (0 -15)) (polynomial z polynomial-dense-terms 5 2 4 0 5 -7 -15)) 
-Applying #<procedure:sub> on: {3v^10 + 4v^7 - 11v^5 - 7v - 15}, {2z^5 + 4z^4 + 5z^2 - 7z - 15}
-Result: (polynomial z polynomial-sparse-terms (5 (integer . -2)) (4 (integer . -4)) (2 (integer . -5)) (1 7) (0 (polynomial v polynomial-sparse-terms (10 3) (7 4) (5 -11) (1 -7))))
-{ - 2z^5 - 4z^4 - 5z^2 + 7z + {3v^10 + 4v^7 - 11v^5 - 7v}}
-
-
-Running Test: (#<procedure:sub> (polynomial q polynomial-dense-terms 0 0) (polynomial q polynomial-sparse-terms (0 5))) 
-Applying #<procedure:sub> on: {}, {5}
-Result: (polynomial q polynomial-sparse-terms (0 (integer . -5)))
-{ - 5}
-
-Running Test: (#<procedure:sub> (polynomial q polynomial-sparse-terms (0 5)) (polynomial q polynomial-dense-terms 0 0)) 
-Applying #<procedure:sub> on: {5}, {}
-Result: (polynomial q polynomial-sparse-terms (0 5))
-{5}
-
-Running Test: (#<procedure:sub> (polynomial r polynomial-dense-terms 0 5) (polynomial r polynomial-sparse-terms (1 7) (0 5))) 
-Applying #<procedure:sub> on: {5}, {7r + 5}
-Result: (polynomial r polynomial-sparse-terms (1 (integer . -7)))
-{ - 7r}
-
-Running Test: (#<procedure:sub> (polynomial s polynomial-dense-terms 1 3 5) (polynomial s polynomial-sparse-terms (1 9) (0 -25))) 
-Applying #<procedure:sub> on: {3s + 5}, {9s - 25}
-Result: (polynomial s polynomial-sparse-terms (1 (integer . -6)) (0 30))
-{ - 6s + 30}
-
-Running Test: (#<procedure:sub> (polynomial t polynomial-dense-terms 1 4 9) (polynomial t polynomial-sparse-terms (5 1) (4 2) (2 3) (1 -2) (0 -5))) 
-Applying #<procedure:sub> on: {4t + 9}, {t^5 + 2t^4 + 3t^2 - 2t - 5}
-Result: (polynomial t polynomial-sparse-terms (5 (integer . -1)) (4 (integer . -2)) (2 (integer . -3)) (1 6) (0 14))
-{ - 1t^5 - 2t^4 - 3t^2 + 6t + 14}
-
-Running Test: (#<procedure:sub> (polynomial u polynomial-dense-terms 2 3 5 23) (polynomial u polynomial-sparse-terms (5 2) (4 4) (2 5) (1 -7) (0 -15))) 
-Applying #<procedure:sub> on: {3u^2 + 5u + 23}, {2u^5 + 4u^4 + 5u^2 - 7u - 15}
-Result: (polynomial u polynomial-sparse-terms (5 (integer . -2)) (4 (integer . -4)) (2 (integer . -2)) (1 12) (0 38))
-{ - 2u^5 - 4u^4 - 2u^2 + 12u + 38}
-
-Running Test: (#<procedure:sub> (polynomial v polynomial-dense-terms 2 4 9 19) (polynomial v polynomial-sparse-terms (10 3) (7 4) (5 -11) (1 -7) (0 -15))) 
-Applying #<procedure:sub> on: {4v^2 + 9v + 19}, {3v^10 + 4v^7 - 11v^5 - 7v - 15}
-Result: (polynomial v polynomial-sparse-terms (10 (integer . -3)) (7 (integer . -4)) (5 11) (2 4) (1 16) (0 34))
-{ - 3v^10 - 4v^7 + 11v^5 + 4v^2 + 16v + 34}
-
-Running Test: (#<procedure:sub> (polynomial w polynomial-dense-terms 5 1 2 0 3 -2 -5) (polynomial z polynomial-sparse-terms (12 4) (6 13) (5 -12) (1 -7) (0 -15))) 
-Applying #<procedure:sub> on: {w^5 + 2w^4 + 3w^2 - 2w - 5}, {4z^12 + 13z^6 - 12z^5 - 7z - 15}
-Result: (polynomial z polynomial-sparse-terms (12 (integer . -4)) (6 (integer . -13)) (5 12) (1 7) (0 (polynomial w polynomial-sparse-terms (5 1) (4 2) (2 3) (1 -2) (0 10))))
-{ - 4z^12 - 13z^6 + 12z^5 + 7z + {w^5 + 2w^4 + 3w^2 - 2w + 10}}
-
-
-Running Test: (#<procedure:=zero?> (polynomial v polynomial-dense-terms)) 
-Applying #<procedure:=zero?> on: {}
-Result: #t
-True
-
-Running Test: (#<procedure:=zero?> (polynomial s polynomial-sparse-terms)) 
-Applying #<procedure:=zero?> on: {}
-Result: #t
-True
-
-
-'(polynomial-list (y polynomial-sparse-terms (0 1)) (y))
-'(polynomial-list (w polynomial-sparse-terms (2 1)) (w))
-'(polynomial-list (p polynomial-sparse-terms (1 1)) (p polynomial-sparse-terms (1 1) (0 -1)))
-'(polynomial-list (x polynomial-sparse-terms (3 1) (1 1)) (x polynomial-sparse-terms (1 1) (0 -1)))
-'(polynomial-list (x polynomial-sparse-terms (3 3) (1 (integer . -2)) (0 (real . -4.5))) (x polynomial-sparse-terms (1 (real . 5.5)) (0 23) (0 0)))
-
-P3y: '(polynomial y polynomial-sparse-terms (1 1))
-P3y: {y}
-P3y in terms of x: '(polynomial x polynomial-sparse-terms (0 (polynomial y polynomial-sparse-terms (1 1))))
-P3y in terms of x: {{y}}
-
-X: '(polynomial x polynomial-sparse-terms (1 1))
-X: {x}
-P4y: '(polynomial y polynomial-sparse-terms (1 (polynomial x polynomial-sparse-terms (1 1))))
-P4y: {{x}y}
-P4y in terms of x: '(polynomial x polynomial-sparse-terms (1 (polynomial y polynomial-sparse-terms (1 1))))
-P4y in terms of x: {{y}x}
-
-Xsq: '(polynomial x polynomial-sparse-terms (2 1))
-Xsq: {x^2}
-P5y: '(polynomial y polynomial-sparse-terms (1 (polynomial x polynomial-sparse-terms (2 1))))
-P5y: {{x^2}y}
-P5y in terms of x: '(polynomial x polynomial-sparse-terms (2 (polynomial y polynomial-sparse-terms (1 1))))
-P5y in terms of x: {{y}x^2}
-
-5Xsq: '(polynomial x polynomial-sparse-terms (2 5))
-5Xsq: {5x^2}
-P6y: '(polynomial y polynomial-sparse-terms (1 (polynomial x polynomial-sparse-terms (2 5))))
-P6y: {{5x^2}y}
-P6y in terms of x: '(polynomial x polynomial-sparse-terms (2 (polynomial y polynomial-sparse-terms (1 5))))
-P6y in terms of x: {{5y}x^2}
-
-5Xcb: '(polynomial x polynomial-sparse-terms (3 5))
-5Xcb: {5x^3}
-P7y: '(polynomial y polynomial-sparse-terms (7 (polynomial x polynomial-sparse-terms (3 5))))
-P7y: {{5x^3}y^7}
-P7y in terms of x: '(polynomial x polynomial-sparse-terms (3 (polynomial y polynomial-sparse-terms (7 5))))
-P7y in terms of x: {{5y^7}x^3}
-
-P8y: '(polynomial y polynomial-sparse-terms (7 (polynomial x polynomial-sparse-terms (3 5))) (1 (polynomial x polynomial-sparse-terms (2 5))))
-P8y: {{5x^3}y^7 + {5x^2}y}
-P8y in terms of x: '(polynomial x polynomial-sparse-terms (3 (polynomial y polynomial-sparse-terms (7 5))) (2 (polynomial y polynomial-sparse-terms (1 5))))
-P8y in terms of x: {{5y^7}x^3 + {5y}x^2}
-
-P9y: {{x^2}y^4}
-P6y: {{5x^2}y}
-P10y = P9y + P6y: '(polynomial y polynomial-sparse-terms (4 (polynomial x polynomial-sparse-terms (2 1))) (1 (polynomial x polynomial-sparse-terms (2 5))))
-P10y = P9y + P6y: {{x^2}y^4 + {5x^2}y}
-P10y in terms of x: '(polynomial x polynomial-sparse-terms (2 (polynomial y polynomial-sparse-terms (4 1) (1 5))))
-P10y in terms of x: {{y^4 + 5y}x^2}
-
-P9y: {{x^2}y^4}
-P61y: {{5x^2}y^4}
-P11y = P9y + P61y: '(polynomial y polynomial-sparse-terms (4 (polynomial x polynomial-sparse-terms (2 6))))
-P11y = P9y + P61y: {{6x^2}y^4}
-P11y in terms of x: '(polynomial x polynomial-sparse-terms (2 (polynomial y polynomial-sparse-terms (4 6))))
-P11y in terms of x: {{6y^4}x^2}
-
-P1x: '(polynomial x polynomial-sparse-terms (1 3) (0 -2))
-P1x: {3x - 2}
-P1x in terms of z: '(polynomial z polynomial-sparse-terms (0 (polynomial x polynomial-sparse-terms (1 3) (0 -2))))
-P1x in terms of z: {{3x - 2}}
-
-P1y: '(polynomial y polynomial-sparse-terms (1 (polynomial x polynomial-sparse-terms (1 3) (0 -2))) (0 (polynomial x polynomial-dense-terms 1 7 3)))
-P1y: {{3x - 2}y + {7x + 3}}
-P1y in terms of x: '(polynomial x polynomial-sparse-terms (1 (polynomial y polynomial-sparse-terms (1 3) (0 7))) (0 (polynomial y polynomial-sparse-terms (1 -2) (0 3))))
-P1y in terms of x: {{3y + 7}x + { - 2y + 3}}
-
-P1z: '(polynomial
-  z
-  polynomial-sparse-terms
-  (1 (polynomial y polynomial-sparse-terms (1 (polynomial x polynomial-sparse-terms (1 3) (0 -2))) (0 (polynomial x polynomial-dense-terms 1 7 3))))
-  (0 (polynomial y polynomial-dense-terms 1 (polynomial x polynomial-sparse-terms (1 5) (0 -4)) (polynomial x polynomial-dense-terms 1 9 -6))))
-P1z: {{{3x - 2}y + {7x + 3}}z + {{5x - 4}y + {9x - 6}}}
-P1z in terms of y: '(polynomial
-  y
-  polynomial-sparse-terms
-  (1 (polynomial z polynomial-sparse-terms (1 (polynomial x polynomial-sparse-terms (1 3) (0 -2))) (0 (polynomial x polynomial-sparse-terms (1 5) (0 -4)))))
-  (0 (polynomial z polynomial-sparse-terms (1 (polynomial x polynomial-dense-terms 1 7 3)) (0 (polynomial x polynomial-dense-terms 1 9 -6)))))
-P1z in terms of y: {{{3x - 2}z + {5x - 4}}y + {{7x + 3}z + {9x - 6}}}
-
-P1z in terms of x: '(polynomial
-  x
-  polynomial-sparse-terms
-  (1 (polynomial z polynomial-sparse-terms (1 (polynomial y polynomial-sparse-terms (1 3) (0 7))) (0 (polynomial y polynomial-sparse-terms (1 5) (0 9)))))
-  (0 (polynomial z polynomial-sparse-terms (1 (polynomial y polynomial-sparse-terms (1 -2) (0 3))) (0 (polynomial y polynomial-sparse-terms (1 -4) (0 -6))))))
-P1z in terms of x: {{{3y + 7}z + {5y + 9}}x + {{ - 2y + 3}z + { - 4y - 6}}}
-
-P5x: '(polynomial x polynomial-sparse-terms (1 11))
-P5x: {11x}
-P12y: '(polynomial y polynomial-sparse-terms (1 15))
-P12y: {15y}
-P5x + P12y: 
-Running Test: (#<procedure:add> (polynomial x polynomial-sparse-terms (1 11)) (polynomial y polynomial-sparse-terms (1 15))) 
-Applying #<procedure:add> on: {11x}, {15y}
-Result: (polynomial x polynomial-sparse-terms (1 11) (0 (polynomial y polynomial-sparse-terms (1 15))))
-{11x + {15y}}
-
-P5x + P12y: 
-{11x + {15y}}
-
-P6x: '(polynomial x polynomial-sparse-terms (1 11) (0 12))
-P6x: {11x + 12}
-P13y: '(polynomial y polynomial-sparse-terms (1 15) (0 17))
-P13y: {15y + 17}
-P6x + P13y: 
-Running Test: (#<procedure:add> (polynomial x polynomial-sparse-terms (1 11) (0 12)) (polynomial y polynomial-sparse-terms (1 15) (0 17))) 
-Applying #<procedure:add> on: {11x + 12}, {15y + 17}
-Result: (polynomial x polynomial-sparse-terms (1 11) (0 (polynomial y polynomial-sparse-terms (1 15) (0 29))))
-{11x + {15y + 29}}
-
-P6x + P13y: 
-{11x + {15y + 29}}
-
-P7x: '(polynomial x polynomial-sparse-terms (2 10) (1 11) (0 12))
-P7x: {10x^2 + 11x + 12}
-P14y: '(polynomial y polynomial-sparse-terms (2 13) (1 15) (0 17))
-P14y: {13y^2 + 15y + 17}
-P7x + P14y: 
-Running Test: (#<procedure:add> (polynomial x polynomial-sparse-terms (2 10) (1 11) (0 12)) (polynomial y polynomial-sparse-terms (2 13) (1 15) (0 17))) 
-Applying #<procedure:add> on: {10x^2 + 11x + 12}, {13y^2 + 15y + 17}
-Result: (polynomial x polynomial-sparse-terms (2 10) (1 11) (0 (polynomial y polynomial-sparse-terms (2 13) (1 15) (0 29))))
-{10x^2 + 11x + {13y^2 + 15y + 29}}
-
-P7x + P14y: 
-{10x^2 + 11x + {13y^2 + 15y + 29}}
 > 
