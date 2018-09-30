@@ -2064,12 +2064,28 @@
 (print P1)
 (newline)
 
-; (define GCDP (greatest-common-divisor Q1 Q2))
-; (newline)
-; (display "GCDP is: ")
-; (print GCDP)
-; (newline)
-
-; (reduce-coefficients (term-list GCDP))
-
 ; Tests
+
+Welcome to DrRacket, version 6.11 [3m].
+Language: racket, with debugging; memory limit: 512 MB.
+
+P1 is: {x^2 - 2x + 1}
+P2 is: {11x^2 + 7}
+P3 is: {13x + 5}
+Q1 is: {11x^4 - 22x^3 + 18x^2 - 14x + 7}
+Q2 is: {13x^3 - 21x^2 + 3x + 5}
+Running Test: (#<procedure:greatest-common-divisor> (polynomial x polynomial-sparse-terms (4 11) (3 (integer . -22)) (2 18) (1 (integer . -14)) (0 7) (0 0)) (polynomial x polynomial-sparse-terms (3 13) (2 (integer . -21)) (1 3) (0 5) (0 0))) 
+Applying #<procedure:greatest-common-divisor> on: {11x^4 - 22x^3 + 18x^2 - 14x + 7}, {13x^3 - 21x^2 + 3x + 5}
+
+Computing gcd of: {11x^4 - 22x^3 + 18x^2 - 14x + 7} and {13x^3 - 21x^2 + 3x + 5}
+Integerizing factor is: 169
+
+Computing gcd of: {13x^3 - 21x^2 + 3x + 5} and {1458x^2 - 2916x + 1458}
+Integerizing factor is: 2125764
+
+Computing gcd of: {1458x^2 - 2916x + 1458} and {}
+Result: (polynomial x polynomial-sparse-terms (2 1) (1 (integer . -2)) (0 1) (0 0))
+{x^2 - 2x + 1}
+
+P1 is: {x^2 - 2x + 1}
+> 
