@@ -192,8 +192,6 @@
 	(cond
 		; If the polynomial is empty, then return a new empty polynomial in the new-variable
 		((empty-termlist? (term-list p)) (make-polynomial new-var (the-empty-poly-termlist)))
-		; If the polynomial is empty, then return zero
-		; ((empty-termlist? (term-list p)) 0)
 		; if new-var is not really new, return the polynomial as it is
 		((equal? (variable p) new-var) p)
 		; If the polynomial has only one term
@@ -261,13 +259,13 @@
 								)
 							)
 						)
-	 					; coeff in the term is not a polynomial
-	 					; Example: 7y^4 becomes (7y^4)x^0
 	 				)
 					; Coefficient is an empty polynomial, so return an empty polynomial in the new variable
 					((and (is-poly? (coeff the-term)) (empty-termlist? (term-list (coeff the-term))))
 						(make-polynomial new-var (the-empty-poly-termlist))
 					)
+	 				; coeff in the term is not a polynomial
+	 				; Example: 7y^4 becomes (7y^4)x^0
 					(else
 	 					(make-polynomial new-var (make-polynomial-sparse-terms (list (list 0 p))))
 					)
@@ -1571,27 +1569,6 @@
 								  (add pg1 (NEGATE pg2))
 							)
 						)
-						; (lambda (p1 p2)
-; 							; (attach-tag 'polynomial (sub-poly p1 p2))
-; 							(attach-tag 'polynomial
-; 								(if (same-variable? (variable-poly p1) (variable-poly p2))
-; 									(sub-poly p1 p2)
-; 									; Note: The procedure convert-polynomial expects the type-tag in the object
-; 									; we supply to it
-; 									(let ((pg1 (make-polynomial (variable-poly p1) (term-list-poly p1)))
-; 										  (pg2 (make-polynomial (variable-poly p2) (term-list-poly p2))))
-; 										(if (higher-in-hierarchy? (variable-poly p1) (variable-poly p2))
-; 											(let ((cpg2 (convert-polynomial pg2 (variable-poly p1))))
-; 												(sub-poly p1 (contents cpg2))
-; 											)
-; 											(let ((cpg1 (convert-polynomial pg1 (variable-poly p2))))
-; 												(sub-poly (contents cpg1) p2)
-; 											)
-; 										)
-; 									)
-; 								)
-;							)
-;						)
 					)
 				)
 			)
