@@ -12,6 +12,54 @@
 ; The main work in this exercise lies in the 'convert-polynomial' procedure that transforms a polynomial
 ; from one variable to another
 
+; This problem was quite hard and took me several days to solve correctly. Right in the beginning, I decided to write a 'convert' procedure that 'casts' a polynomial in one variable to the same polynomial in a different variable by re-arranging the terms. In this procedure I needed to account for the fact that the coefficients of a polynomial can themselves be polynomials. This 'polynomials inside a polynomial' can go to any depth.
+
+; The hardest part was to find a clean, generic way to do the multiplying and re-arranging of variables that we so easily do by hand. 
+
+; At the very beginning I decided that a pretty-print procedure was needed for the polynomials because it is very hard to read the internal list representation (sparse or dense) of a polynomial. This print-poly procedure really saved my life especially while testing my program.
+
+; I knew that the convert-polynomial procedure had to be recursive. If a polynomial in x needs to be converted to a polynomial in y, then we can convert each term of the x-polynomial to a y-polynomial and then add them all together using ordinary polynomial addition. So this was the main driving recursive logic for the conversion process. The 'first-terms' and 'rest-terms' procedures came in handy here.
+
+; Once this main driving logic was in place, I started thinking about the conditions where the recursion terminates and the call-stack unwinds. These conditions are:
+
+; 1. If we have an empty polynomial in x, then convert-polynomial simply returns an empty polynomial in y.
+
+; 2. If the polynomial we are trying to convert is already in the target variable, then there is nothing to do. Simply return the same polynomial.
+
+; 3. If the polynomial has only one term then we have to account for the following possibilities:
+
+; 3a. The coefficient of this term is a non-empty polynomial: In this case, first convert the coefficient so that it is in the target variable. Then do something like this (In this example, the converted coefficient is Cx^2):
+
+; Cx^2y^4 needs to be transformed to Cy^4x^2 i.e.
+
+; ('polynomial y (4 (polynomial x (2 C))))
+; needs to become
+; ('polynomial x (2 (polynomial y (4 C))))
+
+; Note that the converted coefficient can be a polynomial with multiple terms itself so the above variable swapping transformation needs to be done for all the terms and after that these terms need to be added back together. Again, the 'first-term' and 'rest-terms' procedures are useful for this.
+
+; 3b. Coefficient is an empty polynomial: Return an empty polynomial in the new variable.
+
+; 3c. Coefficient in the term is not a polynomial:  Example: In 7y^4, the coefficient is not a polynomial but just a constant. Assuming that we are converting polynomials in y to polynomials in x, this needs to be transformed to (7y^4)x^0.
+
+; It took multiple rounds of analysis and thought to arrive at this structure.
+
+; Other procedures I needed to write to support this conversion process:
+
+; higher-in-hierarchy?: This is a yes/no procedure that tells me if the variable specified by the first argument is higher in the hierarchy than the variable specified by the second argument. When we have to combine two polynomials in different variables, this procedure is used to determine which one to convert to the other.
+
+; Generic =zero? procedure that checks if a polynomial is equal t zero. For this we basically check if the term list is empty.
+
+; equal-polynomial-real?: Aids in simplifying polynomials. I found that when 'convert-polynomial' runs, it invariably ends up with 'polynomials' that are really just ordinary numbers. This procedure can determine if this is the case and after that we can just replace the polynomial with the number it really is.
+
+; After this, I had to do the following:
+
+; 1. Modify the 'add' and 'mul' procedures for polynomial to polynomial operations to check if the variables are different and if they are, simply call the old 'add-poly' or 'mul-poly' and if not, then determine which variable is higher in the hierarchy, do polynomial conversion in the right direction and then call 'add-poly' or 'mul-poly'.
+
+; 2. I found that there is a need to support the addition and multiplication of polynomials to real numbers and complex numbers. This is because, when we combine terms, the coefficient of one term may be a polynomial and the coefficient of the other term may be an ordinary number. So I implemented a generic procedure for this. Again, the method is to convert the real number to a polynomial in the same variable as the other polynomial and then do ordinary polynomial addition or multiplication.
+
+; During testing, I encountered infinite loop issues multiple times because the 'raises' and 'drops' in the generic procedure framework cause this when crucial combinations are missing in the op-table. I broke these infinite loops by supporting operations/type combinations that I had missed earlier.
+
 ; GENERIC PROCEDURES
 
 ; Generic Polynomial procedures
