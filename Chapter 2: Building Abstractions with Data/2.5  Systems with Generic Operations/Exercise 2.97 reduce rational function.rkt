@@ -182,7 +182,6 @@
 )
 
 (define (the-empty-poly-termlist) '())
-; (define (the-empty-poly-termlist) (list 'polynomial-sparse-terms (list 0 0)))
 
 (define (convert-polynomial p new-var)
 	; Converts the polynomial by expanding and rearranging the terms so that 'new-var' becomes the variable
@@ -209,12 +208,9 @@
 						; ('polynomial y (4 (polynomial x (2 C)))) needs to become
 						; ('polynomial x (2 (polynomial y (4 C))))
 						(let ((converted-inner-poly (convert-polynomial (coeff the-term) new-var)))
-							(let (
-								  ; (cip-first-term-poly (first-term-part-poly converted-inner-poly))
-								  (cip-rest-terms-poly (rest-terms-part-poly converted-inner-poly))
+							(let ((cip-rest-terms-poly (rest-terms-part-poly converted-inner-poly))
 								  (cip-first-term-order (order (first-term (term-list converted-inner-poly))))
-								  (cip-first-term-coeff (coeff (first-term (term-list converted-inner-poly))))
-								 )
+								  (cip-first-term-coeff (coeff (first-term (term-list converted-inner-poly)))))
 								(add
 									(make-polynomial
 										new-var
@@ -239,9 +235,7 @@
 											)
 										)
 									)
-									; LOGIC PROBLEM HERE
 									(convert-polynomial
-										; cip-rest-terms-poly
 										(make-polynomial
 											(variable p)
 											(make-polynomial-sparse-terms
@@ -660,7 +654,6 @@
 	; (display term-list)
 	; (newline)
 	(cond
-		; ((empty-termlist? term-list) 1)
 		; there is only one term, then the gcd is the coefficient of that term
 		((empty-termlist? (rest-terms term-list)) (coeff (first-term term-list)))
 		(else
@@ -692,7 +685,7 @@
 )
 
 (define (lesser-polynomial-real? p r)
-	; returns true if the polynomial is just a constant which is less than r
+	; Returns true if the polynomial is just a constant which is less than r
 	(and (=zero? (order (first-term (term-list-poly p)))) (lesser? (coeff (first-term (term-list-poly p))) r))
 )
 
@@ -719,7 +712,7 @@
 )
 
 (define (empty-termlist? t)
-	; consider both with tag and without tag
+	; Consider both with tag and without tag
 	; This procedure will return true for the following data:
 	; '()
 	; ('polynomial-sparse-terms)
@@ -735,7 +728,7 @@
 )
 
 (define (equal-polynomial-real? p r)
-	; returns true if the polynomial is just a constant which is less than r
+	; Returns true if the polynomial is just a constant which is less than r
 	(and (=zero? (order (first-term (term-list-poly p)))) (equ? (coeff (first-term (term-list-poly p))) r))
 )
 
@@ -824,7 +817,6 @@
 	)
 )
 
-; (define (project-complex c) (make-real (REAL-PART c)))
 (define (project-complex c) (REAL-PART c))
 
 (define (square-complex c) 
@@ -917,30 +909,12 @@
 
 (define (make-rational-specific n d)
 	(define (construct-rational n d)
-		(cond
-			; ((and (pair? n) (pair? d)) (cons n d))
-			((and (pair? n) (pair? d)) (reduce n d))
-			(else
-				(reduce n d)
-
-				; (let ((g (gcd n d)))
-				; 	(cond
-				; 		((= d 0) (error "Denominator in a rational number cannot be zero"))
-				; 		((= n 0) (cons n d))
-				; 		((and (< n 0) (< d 0)) (cons (/ (abs n) g) (/ (abs d) g)))
-				; 		((and (< n 0) (> d 0)) (cons (/ n g) (/ d g)))
-				; 		((and (> n 0) (< d 0)) (cons (/ (* -1 n) g) (/ (abs d) g)))
-				; 		((and (> n 0) (> d 0)) (cons (/ n g) (/ d g)))
-				; 	)
-				; )
-
-			)
-		)
+		(reduce n d)
 	)
 
 	(cond
 		; This will be the case when we are constructing a rational function in which the numerator
-		; and denominator are polynomials
+		; and/or denominator are polynomials or tagged types
 		((or (pair? n) (pair? d)) 
 			(construct-rational n d)
 		)
@@ -990,8 +964,6 @@
 (define (div-rational x y) (make-rational-specific (mul (numer x) (denom y)) (mul (denom x) (numer y))))
 
 (define (equal-rational? x y)
-	; (display "Entered equal-rational?")
-	; (newline)
 	(and (equ? (numer x) (numer y)) (equ? (denom x) (denom y)))
 )
 
@@ -1004,7 +976,6 @@
 )
 
 (define (=zero-rational? x)
-	; (= 0 (numer x))
 	(=zero? (numer x))
 )
 
@@ -1042,8 +1013,6 @@
 )
 
 (define (raise-rational r)
-	; (make-real (* 1.0 (/ (numer r) (denom r))))
-	; (make-real (mul 1.0 (div (numer r) (denom r))))
 	(make-real (div (numer r) (denom r)))
 )
 
@@ -1630,8 +1599,8 @@
 						(lambda (i1 i2)
 							(let ((reduced-integers (reduce-rat-integers i1 i2)))
 								(cons
-									(attach-tag 'integer (car reduced-integers))
-									(attach-tag 'integer (cdr reduced-integers))
+									(car reduced-integers)
+									(cdr reduced-integers)
 								)
 							)
 						)
@@ -1743,7 +1712,6 @@
 					(cons '(complex complex) (lambda (z1 z2) (attach-tag 'complex (mul-complex z1 z2))))
 					(cons
 						'(polynomial polynomial)
-						; (lambda (p1 p2) (attach-tag 'polynomial (mul-poly p1 p2)))
 						(lambda (p1 p2)
 							(attach-tag 'polynomial
 								(if (same-variable? (variable-poly p1) (variable-poly p2))
@@ -1761,6 +1729,30 @@
 											)
 										)
 									)
+								)
+							)
+						)
+					)
+					(cons
+						'(polynomial natural)
+						(lambda (p n)
+							(attach-tag
+								'polynomial
+								; 'Raise' the natural object to a polynomial and then do ordinary multiplication
+								(let ((pg (make-polynomial (variable-poly p) (make-polynomial-sparse-terms (list (list 0 n))))))
+									(mul-poly p (contents pg))
+								)
+							)
+						)
+					)
+					(cons
+						'(polynomial integer)
+						(lambda (p i)
+							(attach-tag
+								'polynomial
+								; 'Raise' the integer object to a polynomial and then do ordinary multiplication
+								(let ((pg (make-polynomial (variable-poly p) (make-polynomial-sparse-terms (list (list 0 i))))))
+									(mul-poly p (contents pg))
 								)
 							)
 						)
@@ -2047,6 +2039,7 @@
 				'scale-down-term
 				(list
 					(cons '(polynomial-term scheme-number) (lambda (term factor) (attach-tag 'polynomial-term (scale-down-poly-term term factor))))
+					(cons '(polynomial-term natural) (lambda (term factor) (attach-tag 'polynomial-term (scale-down-poly-term term factor))))
 					(cons '(polynomial-term integer) (lambda (term factor) (attach-tag 'polynomial-term (scale-down-poly-term term factor))))
 					(cons '(polynomial-term rational) (lambda (term factor) (attach-tag 'polynomial-term (scale-down-poly-term term (attach-tag 'rational factor)))))
 					(cons '(polynomial-term real) (lambda (term factor) (attach-tag 'polynomial-term (scale-down-poly-term term factor))))
@@ -2217,3 +2210,78 @@
 (run-test add rf1 rf2)
 
 ; Tests
+
+Welcome to DrRacket, version 6.11 [3m].
+Language: racket, with debugging; memory limit: 512 MB.
+
+P1 is: {x^2 - 2x + 1}
+P2 is: {11x^2 + 7}
+P3 is: {13x + 5}
+Q1 is: {11x^4 - 22x^3 + 18x^2 - 14x + 7}
+Q2 is: {13x^3 - 21x^2 + 3x + 5}
+Running Test: (#<procedure:greatest-common-divisor> (polynomial x polynomial-sparse-terms (4 11) (3 (integer . -22)) (2 18) (1 (integer . -14)) (0 7) (0 0)) (polynomial x polynomial-sparse-terms (3 13) (2 (integer . -21)) (1 3) (0 5) (0 0))) 
+Applying #<procedure:greatest-common-divisor> on: {11x^4 - 22x^3 + 18x^2 - 14x + 7}, {13x^3 - 21x^2 + 3x + 5}
+
+Computing gcd of: {11x^4 - 22x^3 + 18x^2 - 14x + 7} and {13x^3 - 21x^2 + 3x + 5}
+Integerizing factor is: 169
+
+Computing gcd of: {13x^3 - 21x^2 + 3x + 5} and {1458x^2 - 2916x + 1458}
+Integerizing factor is: 2125764
+
+Computing gcd of: {1458x^2 - 2916x + 1458} and {}
+Result: (polynomial x polynomial-sparse-terms (2 1) (1 -2) (0 1) (0 0))
+{x^2 - 2x + 1}
+
+P1 is: {x^2 - 2x + 1}
+
+p1 is: {x + 1}
+p2 is: {x^3 - 1}
+p3 is: {x}
+p4 is: {x^2 - 1}
+
+Computing gcd of: {x + 1} and {x^3 - 1}
+Integerizing factor is: 1
+
+Computing gcd of: {x^3 - 1} and {x + 1}
+Integerizing factor is: 1
+
+Computing gcd of: {x + 1} and { - 2}
+Integerizing factor is: 4
+
+Computing gcd of: { - 2} and {}
+
+Computing gcd of: {x} and {x^2 - 1}
+Integerizing factor is: 1
+
+Computing gcd of: {x^2 - 1} and {x}
+Integerizing factor is: 1
+
+Computing gcd of: {x} and { - 1}
+Integerizing factor is: 1
+
+Computing gcd of: { - 1} and {}
+rf1 is: [{x + 1} / {x^3 - 1}]
+rf2 is: [{x} / {x^2 - 1}]
+Running Test: (#<procedure:add> (rational (polynomial x polynomial-sparse-terms (1 1) (0 1)) polynomial x polynomial-sparse-terms (3 1) (0 -1)) (rational (polynomial x polynomial-sparse-terms (1 1)) polynomial x polynomial-sparse-terms (2 1) (0 -1))) 
+Applying #<procedure:add> on: [{x + 1} / {x^3 - 1}], [{x} / {x^2 - 1}]
+
+Computing gcd of: {x^4 + x^3 + x^2 - 2x - 1} and {x^5 - x^3 - x^2 + 1}
+Integerizing factor is: 1
+
+Computing gcd of: {x^5 - x^3 - x^2 + 1} and {x^4 + x^3 + x^2 - 2x - 1}
+Integerizing factor is: 1
+
+Computing gcd of: {x^4 + x^3 + x^2 - 2x - 1} and { - x^3 + 2x^2 - x}
+Integerizing factor is: 1
+
+Computing gcd of: { - x^3 + 2x^2 - x} and {6x^2 - 5x - 1}
+Integerizing factor is: 36
+
+Computing gcd of: {6x^2 - 5x - 1} and { - 7x + 7}
+Integerizing factor is: 49
+
+Computing gcd of: { - 7x + 7} and {}
+Result: (rational (polynomial x polynomial-sparse-terms (3 1) (2 2) (1 3) (0 1)) polynomial x polynomial-sparse-terms (4 1) (3 1) (1 -1) (0 -1))
+[{x^3 + 2x^2 + 3x + 1} / {x^4 + x^3 - x - 1}]
+
+> 
