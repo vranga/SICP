@@ -136,3 +136,110 @@
 (run-test (acc 'some-other-password 'withdraw) 10)
 (run-test (acc 'some-other-password 'withdraw) 10)
 (run-test (acc 'some-other-password 'withdraw) 10)
+
+; Test Results
+
+Welcome to DrRacket, version 6.11 [3m].
+Language: racket, with debugging; memory limit: 512 MB.
+Running Test: (#<procedure:withdraw> 30) 
+Applying #<procedure:withdraw> on: 30
+Result: 70
+70
+
+Running Test: (#<procedure:withdraw> 30) 
+Applying #<procedure:withdraw> on: 30
+Result: 40
+40
+
+Running Test: (#<procedure:withdraw> 30) 
+Applying #<procedure:withdraw> on: 30
+Result: 10
+10
+
+Running Test: (#<procedure:withdraw> 30) 
+Applying #<procedure:withdraw> on: 30
+Result: Insufficient funds
+"Insufficient funds"
+
+Running Test: (#<procedure:proc-incorrect-password> 50) 
+Applying #<procedure:proc-incorrect-password> on: 50
+Result: Incorrect password
+"Incorrect password"
+
+Running Test: (#<procedure:deposit> 50) 
+Applying #<procedure:deposit> on: 50
+Result: 60
+60
+
+Running Test: (#<procedure:deposit> 50) 
+Applying #<procedure:deposit> on: 50
+Result: 110
+110
+
+Running Test: (#<procedure:deposit> 50) 
+Applying #<procedure:deposit> on: 50
+Result: 160
+160
+
+Running Test: (#<procedure:deposit> 50) 
+Applying #<procedure:deposit> on: 50
+Result: 210
+210
+
+Running Test: (#<procedure:proc-incorrect-password> 80) 
+Applying #<procedure:proc-incorrect-password> on: 80
+Result: Incorrect password
+"Incorrect password"
+
+Running Test: (#<procedure:deposit> 90) 
+Applying #<procedure:deposit> on: 90
+Result: 300
+300
+
+Running Test: (#<procedure:withdraw> 60) 
+Applying #<procedure:withdraw> on: 60
+Result: 240
+240
+
+Running Test: (#<procedure:withdraw> 60) 
+Applying #<procedure:withdraw> on: 60
+Result: 180
+180
+
+Running Test: (#<procedure:withdraw> 10) 
+Applying #<procedure:withdraw> on: 10
+Result: 170
+170
+
+Running Test: (#<procedure:proc-incorrect-password> 10) 
+Applying #<procedure:proc-incorrect-password> on: 10
+Result: Incorrect password
+"Incorrect password"
+
+Running Test: (#<procedure:proc-incorrect-password> 10) 
+Applying #<procedure:proc-incorrect-password> on: 10
+Result: Incorrect password
+"Incorrect password"
+
+Running Test: (#<procedure:proc-incorrect-password> 10) 
+Applying #<procedure:proc-incorrect-password> on: 10
+Result: Incorrect password
+"Incorrect password"
+
+Running Test: (#<procedure:proc-incorrect-password> 10) 
+Applying #<procedure:proc-incorrect-password> on: 10
+Result: Incorrect password
+"Incorrect password"
+
+Running Test: (#<procedure:proc-incorrect-password> 10) 
+Applying #<procedure:proc-incorrect-password> on: 10
+Result: Incorrect password
+"Incorrect password"
+
+*** Called the cops ***
+Running Test: (#<procedure:proc-incorrect-password> 10) 
+Applying #<procedure:proc-incorrect-password> on: 10
+Result: Incorrect password
+"Incorrect password"
+
+> 
