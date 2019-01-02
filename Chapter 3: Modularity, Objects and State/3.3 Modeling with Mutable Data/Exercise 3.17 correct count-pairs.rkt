@@ -105,6 +105,14 @@
 (define B (mcons 'w 'x))
 (define C (mcons 'y 'z))
 
+(define M (mcons 'u 'b))
+(define N (mcons 'v 'c))
+(define O (mcons 'w 'd))
+(define P (mcons 'd 'e))
+(define Q (mcons 'x 'f))
+(define R (mcons 'y 'g))
+(define S (mcons 'z 'h))
+
 ; Test Results
 
 Welcome to DrRacket, version 6.11 [3m].
@@ -127,4 +135,14 @@ Language: racket, with debugging; memory limit: 512 MB.
 > (set-mcar! C 'y)
 > (count-mpairs A)
 3
-> 
+> (set-mcdr! M N)
+(set-mcdr! N O)
+(set-mcdr! O P)
+(set-mcdr! P M)
+(set-mcar! P Q)
+(set-mcdr! Q R)
+(set-mcdr! R S)
+(set-mcdr! S M)
+(count-mpairs M)
+7
+>
