@@ -8,7 +8,7 @@
 (require rnrs/mutable-pairs-6)
 (require compatibility/mlist)
 
-; I use the definition of an interative process from section 1.2.1. here:
+; I use the definition of an iterative process from section 1.2.1. here:
 ; Scheme will execute an iterative process in constant space, even if the iterative process is
 ; described by a recursive procedure. An implementation with this property is called
 ; tail-recursive. With a tail-recursive implementation, iteration can be expressed using the
