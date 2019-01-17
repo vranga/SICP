@@ -165,5 +165,9 @@ object is printed. This being the last pair in the queue, the last item is print
 time the queue is printed, the last item appears twice: once as the last item in the 'car' of the queue and
 once as the 'cdr' of the queue.
 
-See the test results. I have written the procedure print-queue to print the items of the queue without
-any repetition.
+Note that delete-queue! merely moves the front pointer to the second item in the queue. So even when
+the last item is "deleted", the rear pointer continues to point to it. That is why Ben sees the output:
+(() b)
+
+I have written the procedure print-queue to print the items of the queue without any repetition.
+See the test results above.
