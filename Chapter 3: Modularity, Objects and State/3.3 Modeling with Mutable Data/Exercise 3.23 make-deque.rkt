@@ -1,5 +1,5 @@
 #lang racket
-
+	
 ; Exercise 3.23.  A deque ("double-ended queue") is a sequence in which items can be inserted and
 ; deleted at either the front or the rear. Operations on deques are the constructor make-deque,
 ; the predicate empty-deque?, selectors front-deque and rear-deque, and mutators front-insert-deque!,
@@ -423,7 +423,7 @@ Execution time of #<procedure:empty-deque?>: 0
 Execution time of #<procedure:front-deque>: 0
 Execution time of #<procedure:rear-deque>: 0
 
-<Since the deque is large, I am not showing the print output removed>
+<Since the deque is large, I am not showing the print output. I have removed it.>
 
 Execution time of #<procedure:print-deque>: 201
 Execution time of #<procedure:front-deque>: 0
