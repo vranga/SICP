@@ -24,7 +24,7 @@
 ; 	K33: val33
 ; K4: val4
 ; 
-; So the key combinations to retrive data would be:
+; So the key combinations to retrieve data would be:
 ; 
 ; K1 retrieves val1
 ; K2 retrieves val2
@@ -235,7 +235,7 @@
 			; A key-value pair is the basic building block of the table. It is a pair in which
 			; the 'car' is the key and the 'cdr' is another pair in which the 'car' is a pointer to
 			; a generic table and the 'cdr' is the value. This structure allows us to create an
-			; arbitrary number of level in the able. If it is just a simple key-value pair with no
+			; arbitrary number of levels in the table. If it is just a simple key-value pair with no
 			; sub-keys, then the contained generic table will be null. If it is a key with sub-keys
 			; but no value for this key, then the contained generic table will be non-null and the
 			; value will be null. And of course, both the contained generic table and the value
