@@ -38,7 +38,7 @@
 ; an arbitrary number of keys for any value. This circular relationship made the print procedure a little unclean as you can
 ; see where I call the procedure "print-generic-table"
 
-; As you can see the tests below, my generic table implementation works pretty well. It allows values to be stored under
+; As you can see in the tests below, my generic table implementation works pretty well. It allows values to be stored under
 ; an arbitrary number of keys, different values may be stored under different numbers of keys and since I use a binary tree
 ; to store the values, both the lookups and inserts have a time complexity of (Theta(log n)) where n is the number of
 ; elements at a given level in the multi-level table.
