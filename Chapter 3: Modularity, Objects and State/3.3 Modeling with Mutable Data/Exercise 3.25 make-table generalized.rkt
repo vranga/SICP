@@ -47,7 +47,7 @@
 (define (make-table same-key?)
 
 	(define (make-generic-table)
-		; makes a generic table with its subtable set to null
+		; Make an empty table structure
 		(mlist '*generic-table*)
 	)
 
@@ -372,6 +372,8 @@
 (run-test 'unknown (T1 'insert-proc!) (list 'Pakistan 'Sindh 'Rawalpindi) 'RAWA)
 (run-test 'none (T1 'print))
 (run-test 'unknown (T1 'insert-proc!) (list 'India 'TamilNadu 'Chennai 'BesantNagar 'ElliotsBeach) 'ELLIOTS)
+(run-test 'none (T1 'print))
+(run-test 'unknown (T1 'insert-proc!) (list 'India) 'BH)
 (run-test 'none (T1 'print))
 (run-test 'unknown (T1 'insert-proc!) (list 'Pakistan) 'PoK)
 (run-test 'none (T1 'print))
