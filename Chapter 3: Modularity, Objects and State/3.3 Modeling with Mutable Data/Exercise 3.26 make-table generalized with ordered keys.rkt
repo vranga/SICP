@@ -21,11 +21,14 @@
 ; assumptions about the underlying data structure. Instead they use the message passing strategy to invoke operations on the
 ; binary-tree objects which exist in the generic table.
 
+; For key ordering I have used string comparisons. However, the 'same', 'less-than' and 'greater-than' operations
+; are passed in as parameters to the make-table procedure so make-table is agnostic to how the keys are ordered. 
+
 ; I liked the idea of procedures with local state so I continued to use this technique to implement the binary-tree. I found
 ; the encapsulation that this technique gives, quite useful because it allowed me to think of the table and its contents as
 ; objects with operations within them.
 
-; I re-wrote the monlithic print procedure from the previous exercise and distributed the print work across the three
+; I re-wrote the monolithic print procedure from the previous exercise and distributed the print work across the three
 ; objects: generic table, binary tree and key-value-pair. This made it a little clunky to handle the indentations while
 ; printing different levels in the generic table but overall, I think this is a huge improvement over the way I wrote 
 ; the solution for Exercise 3.25.
