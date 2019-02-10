@@ -8,11 +8,11 @@
 
 ; Note: I made an enhancement to all the function procedures such as and-gate, or-gate etc. to
 ; call the action procedure once as soon as the gate is constructed. This way we ensure that
-; the outut of the gate is correct right from the beginning.
-
-; Delay time of the compound-or-gate = (3 * inverter-delay) + (and-gate-delay)
+; the output of the gate is correct right from the beginning.
 
 ; (OR A B) = (NOT (AND (NOT A) (NOT B)))
+
+; Delay time of the compound-or-gate = (3 * inverter-delay) + (and-gate-delay)
 
 (define (compound-or-gate a1 a2 output)
 	(let ((inverter-output-1 (make-wire)) (inverter-output-2 (make-wire)) (and-gate-output (make-wire)))
