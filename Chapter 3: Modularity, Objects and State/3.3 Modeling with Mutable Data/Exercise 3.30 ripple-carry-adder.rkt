@@ -12,12 +12,15 @@
 
 ; S O L U T I O N
 
-; Look at implementation and test results below. I am also printing the number of times the
-; delay procedure is called for each addition. When we add two 1-bit numbers, the delay proc is
-; called 16 times. When we add two 2-bit numbers, the delay proc is called 32 times.
+; Look at the implementation and test results below. I am also printing the number of times the
+; delay procedure is called for each addition. In a freshly constructed ripple-carry-adder
+; when we add two 1-bit numbers, the delay proc is called 16 times. When we add two 2-bit numbers,
+; the delay proc is called 32 times. Note that while constructing a new ripple-carry-adder, every action
+; procedure on every device is called (sometimes even more than once) and the computation happens in
+; response to whatever signals are wired to the adder at the start.
 
 ; A full-adder contains two half adders and an or-gate.
-; A half-adder contains 2 and-gates, 1 or-gate and 1 inverter
+; A half-adder contains 2 and-gates, 1 or-gate and 1 inverter.
 ; So the total number of components in a full-adder is:
 ; {2 * (2 + 1 + 1)} + 1 = 9
 
@@ -28,7 +31,7 @@
 ; time an inverter is constructed, its action procedure is called once.
 ; So when a half-adder is constructed, the delay proc is called {(2 * 2) + (1 * 2) + 1} = 7 times
 ; Since a full-adder contains two half-adders and an or-gate, when a full-adder is constructed,
-; the delay proc is called {(7 * 2) + 2} = 16 times.
+; the delay proc is called {(7 * 2) + 2} = 16 times. (This can be seen in the test results below.)
 
 ; So the delay in one full-adder is
 ; Full-Adder Delay = {2 * (2 * and-gate-delay + or-gate-delay + inverter-delay)} + or-gate-delay
@@ -36,7 +39,12 @@
 ; 
 ; n * [{2 * (2 * and-gate-delay + or-gate-delay + inverter-delay)} + or-gate-delay]
 
-; Of course, in real circuits, signals flow in parallel and therefore gates may also function in
+; We also observe in the test results below that when an existing adder is re-used for addition of
+; new input values, there is no fixed value for the number of times the the delay proc is called. This
+; is because only those gates are activated (and action procedures called) that are connected to wires
+; where there is a change in signal.
+
+; Of course, in real circuits, signals flow in parallel and therefore gates will also function in
 ; parallel so the actual delay will be lesser than what is computed above.
 
 (define (ripple-carry-adder inputA inputB outputSum outputCarry)
