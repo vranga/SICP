@@ -13,19 +13,19 @@
 
 ; Explanation
 
-; This program contains the complete implemenation of the agenda operations and the after-delay
-; proc as explained in the SICP text. The test reults below show the behavior of the simulator
+; This program contains the complete implementation of the agenda operations and the after-delay
+; proc as explained in the SICP text. The test results below show the behavior of the simulator
 ; in both cases: 1. when action procedures are run immediately after they are added to wires
 ; and 2. when they are not run immediately after they are added to wires.
 ; In the case where action procedures are immediately run, we always ensure that when any primitive
 ; gate is created or when a complex combination of gates are wired together, all the intermediate
-; wires and all the external outputs are in the correct state right from the beginning. Afer this,
+; wires and all the external outputs are in the correct state right from the beginning. After this,
 ; any change in the inputs will trigger a series of activations that will ensure that the final
 ; external outputs contain the correct signals.
 ; When action procedures are not immediately run, the circuit may start with incorrect states in some
 ; wires. In this example of a half-adder, signal on wire E remains 0 when in-fact, it should be a 1
 ; since the input to the inverter is 0 (signal on C). This wrong state of the inverter output
-; at the start causes incorrect outputs once we start changing the half-adder inputs A and B
+; at the start causes incorrect outputs once we start changing the half-adder inputs A and B.
 ;
 ; When A is changed to 1, sum does not change to 1 (when we expect it to).
 ; And when B is changed to 1, carry changes to 1 and sum remains at 0. However, this correctness is
