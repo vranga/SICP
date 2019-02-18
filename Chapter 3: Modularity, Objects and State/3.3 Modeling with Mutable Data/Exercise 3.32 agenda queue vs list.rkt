@@ -36,7 +36,7 @@
 ;
 ; Both the procedures above (actually the same procedure) will be executed as soon as they are added
 ; to the action-proc-list of the two input wires. As shown in the call sequence above, 'new-value' is
-; computed to be 0 in both cases since the logical-and of 0 and 1 is 0. Then the lambda funtion and
+; computed to be 0 in both cases since the logical-and of 0 and 1 is 0. Then the lambda function and
 ; time are inserted into the agenda. At the end of this process, the agenda will look as follows:
 ;
 ; (list 0 (list (3.(queue (lambda 1) (lambda 2)))))
@@ -49,13 +49,13 @@
 ; executes lambda 2 which again sets the output to 0. At the end of this, we have an empty agenda.
 ;
 ; Now let's assume that inputA is set to 1. This will trigger the and-action-procedure which will
-; compute new-value to be 1 (sice both inputs are 1). Again, after-delay and add-to-agenda are 
+; compute new-value to be 1 (since both inputs are 1). Again, after-delay and add-to-agenda are 
 ; called. The agenda will become:
 ;
 ; (list 0 (list (3.(queue (lambda 1))))) <--- Here lambda 1 uses new-value of 1
 ;
 ; Now let's assume that inputB is set to 0. This will trigger the and-action-procedure which will
-; compute new-value to be 0 (sice inputB is 0). Again, after-delay and add-to-agenda are 
+; compute new-value to be 0 (since inputB is 0). Again, after-delay and add-to-agenda are 
 ; called. The agenda will become:
 ;
 ; (list 0 (list (3.(queue (lambda 1) (lambda 2))))) <--- Here lambda 1 uses new-value of 1 and
@@ -68,8 +68,8 @@
 ;
 ; If we had used an ordinary list with LIFO behavior, the agenda would have looked like this:
 ;
-; (list 0 (list (3.(queue (lambda 2) (lambda 1))))) <--- Here lambda 1 uses new-value of 1 and
-; lambda 2 uses new-value of 0
+; (list 0 (list (3.(list (lambda 2) (lambda 1))))) <--- Here lambda 1 uses new-value of 1 and
+; lambda 2 uses new-value of 0.
 ;
 ; When 'propagate' is run, it executes lambda 2 first which sets the output to 0 and then it 
 ; executes lambda 1 which sets the output to 1. At the end of this, we have an empty agenda.
