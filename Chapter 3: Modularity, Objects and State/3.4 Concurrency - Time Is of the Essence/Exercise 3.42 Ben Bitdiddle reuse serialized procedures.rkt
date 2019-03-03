@@ -41,5 +41,5 @@ set will be forced to wait. This includes the procedure that is currently execut
 safe to make this change. The same concurrency is allowed by this version and the previous version
 of make-account. There is no difference.
 
-If the withdawal procedure is being executed by one process, and another process tries to execute it,
+If the withdrawal procedure is being executed by one process, and another process tries to execute it,
 it will be forced to wait. So two executions of the withdrawal procedure will not get interleaved.
