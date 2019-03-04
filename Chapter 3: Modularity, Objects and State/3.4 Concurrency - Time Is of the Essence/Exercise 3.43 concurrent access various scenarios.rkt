@@ -38,7 +38,7 @@ Part 2: Balances start out as $10, $20 and $30 and the processes run concurrentl
 first version (i.e. the non-serialized version) of the exchange procedure
 ------------------------------------------------------------------------------------------------------
 
-See timing diagram included with this solution. The balances becomes $20 each
+See timing diagram included with this solution. The balances becomes $20 each.
 
 Part 3: Explain how even with this exchange program, the sum of the balances in the accounts will be
 preserved.
@@ -49,7 +49,7 @@ the integrity of each account is preserved regardless of how many concurrent exc
 happen.
 
 Secondly, every deposit to one account is matched by a withdrawal from another account. So if the
-three acccounts are considered together, the sum of the balances of the three accounts remains the
+three accounts are considered together, the sum of the balances of the three accounts remains the
 same because money is just being moved around within these accounts. No new money is being added,
 nor is any money being taken away from these three accounts. With any amount of interleaving of
 an arbitrary number of processes executing 'exchange', the money just bounces around within the
