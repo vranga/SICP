@@ -13,6 +13,36 @@
 
 ; S O L U T I O N
 
+(define (stream-map proc . argstreams)
+	(if (stream-empty? (car argstreams))
+		empty-stream
+		(let ((first-set-of-args (map stream-first argstreams)))
+			; (display "Streams passed to stream-map: ")
+			; (display argstreams)
+			; (newline)
+			(display "Arguments about to be passed to ")
+			(display proc)
+			(display ": ")
+			(display first-set-of-args)
+			(newline)
+			(stream-cons
+				(apply proc first-set-of-args)
+				(apply stream-map (cons proc (map stream-rest argstreams)))
+			)
+		)
+	)
+)
+
+; (define (stream-map proc s)
+; 	(if (stream-empty? s)
+; 		empty-stream
+; 		(stream-cons
+; 			(proc (stream-first s))
+; 			(stream-map proc (stream-rest s))
+; 		)
+; 	)
+; )
+
 ; Test Driver
 
 (define (run-test return-type proc . args)
@@ -74,4 +104,24 @@
 
 ; Tests
 
+(define S1 (stream 1 2 3))
+(define S2 (stream 7 8 9))
+(define S3 (stream 13 14 15))
+
+(define (add x y z) (+ x y z))
+(define R (stream-map add S1 S2 S3))
+
 ; Test Results
+
+Welcome to DrRacket, version 6.11 [3m].
+Language: racket, with debugging; memory limit: 512 MB.
+Arguments about to be passed to #<procedure:add>: (1 7 13)
+> (stream-first R)
+21
+> (stream-first (stream-rest R))
+Arguments about to be passed to #<procedure:add>: (2 8 14)
+24
+> (stream-first (stream-rest (stream-rest R)))
+Arguments about to be passed to #<procedure:add>: (3 9 15)
+27
+> 
