@@ -206,6 +206,8 @@ Entered stream-ref with n = 0
 120
 190
 210'done
+> (display sum)
+210
 > 
 
 ; To the last question on whether the responses will differ if 'delay' were implemented without memoization,
