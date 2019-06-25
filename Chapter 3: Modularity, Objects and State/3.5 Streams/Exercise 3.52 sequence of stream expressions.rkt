@@ -212,4 +212,4 @@ Entered stream-ref with n = 0
 ; the answer is that the value of 'sum' will be higher since 'accum' will be applied multiple more times.
 ; Specifically, after y is defined, 'sum' is 6 but when z is defined, due to the absence of memoization
 ; 'accum' will be applied again on the elements 1, 2 and 3 from the enumerated interval. So z will be a 
-; different stream from when memoization is used. Additioally 'seq' changes everytime it is accessed. 
+; different stream from when memoization is used. Additionally 'seq' changes everytime it is accessed. 
