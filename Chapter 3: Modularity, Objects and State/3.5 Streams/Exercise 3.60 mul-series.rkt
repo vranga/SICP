@@ -45,7 +45,7 @@
 			)
 			; {(a1x + a2x^2 + a3x^3 + ...) * (b1x + b2x^2 + b3x^3 + ...)}
 			(stream-cons
-				; 0 needst to be prepended to this stream so that the first term of the series
+				; 0 needs to be prepended to this stream so that the first term of the stream
 				; is the x^1 term. Only then the outer add-streams will add like terms in the
 				; two series supplied to it
 				0
