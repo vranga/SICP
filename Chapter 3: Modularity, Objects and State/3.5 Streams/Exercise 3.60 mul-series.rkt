@@ -20,7 +20,7 @@
 ; {b0 * (a1x + a2x^2 + a3x^3 + ...)} +
 ; {(a1x + a2x^2 + a3x^3 + ...) * (b1x + b2x^2 + b3x^3 + ...)}
 ;
-; The coeffcients after multiplyng the two series above will be:
+; The coefficients after multiplying the two series above will be:
 ; Variable	|		Coefficient
 ;-------------------------------
 ; x^0		|		a0*b0
