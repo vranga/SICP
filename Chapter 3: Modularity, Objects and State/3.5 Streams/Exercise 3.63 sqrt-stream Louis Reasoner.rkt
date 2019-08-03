@@ -21,17 +21,24 @@
 ;
 ; (display-stream (sqrt-stream 100))
 ;
-; will result in generating the stream elements from the first element till the 101st element.
+; will result in generating the stream elements from the first element till the 100th element.
+; Since this will be the first time the stream elements are accessed, all delayed objects will
+; be forced when we display the stream.
+;
 ; If after this we call:
 ;
 ; (display-stream (sqrt-stream 101))
 ;
 ; a new stream is created so the evaluations to generate all elements from the first
-; till the 102nd element will be performed again. 
+; till the 101st element will be performed again. All delayed objects will be forced again since 
+; this is a new stream that shares no state with the previous stream.
 ;
 ; Coming to the second part of the problem, if our implementation of delay used only (lambda () <exp>)
-; without taking advantage of memo-proc, then the two versions will not differ in efficiency at all.
-; They will essentially be the same.
+; without taking advantage of memo-proc, then the two versions will differ in efficiency only to the
+; small extent that whereas sqrt-stream maintains a single stream, Louis' implementation constructs a new
+; stream every time it is run. Post-construction of the stream, the calls to access the stream elements
+; will not differ in efficiency between the two implementations since in both cases, all delayed objects
+; will be forced every time they are accessed.
 
 (define (louis-reasoner-sqrt-stream x)
 	(stream-cons
