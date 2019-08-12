@@ -9,13 +9,17 @@
 
 ; S O L U T I O N
 
-; As we can see from the results below, the rate of convergene increases dramatically
-; with euler transforms and tableau. I ran multiple tests on the un-accelerated series.
-; Even with 10000 terms, the value of ln(2) computed was 0.6930971830599583 whereas
-; the desired value is 0.69314718056. The difference is 0.0000499975.
+; As we can see from the results below, the rate of convergence increases dramatically
+; with Euler transforms and tableau.
+
+; I ran multiple tests on the un-accelerated series.Even with 10000 terms, the value of
+; ln(2) computed was 0.6930971830599583 whereas the desired value is 0.69314718056.
+; The difference is 0.0000499975.
+
 ; Euler acceleration is much faster and gets very close to the desired value in 5000
 ; steps. The value after combining 5000 terms is 0.6931471805589525.
-; By using tableau acceleration, we reach 0.6931471805599454 just 10 steps!
+
+; But by using tableau acceleration, we reach 0.6931471805599454 just 10 steps!
 
 (define (partial-sums S)
 	(stream-cons (stream-first S) (add-streams (partial-sums S) (stream-rest S)))
