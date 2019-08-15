@@ -19,7 +19,7 @@
 ; getting into an infinite loop. 
 
 ; When 'louis-reasoner-pairs' executes, 'interleave' needs to be run. But before that, it's
-; arguments need to be evalutated. The second argument is a call to louis-reasoner-pairs
+; arguments need to be evaluated. The second argument is a call to louis-reasoner-pairs
 ; again. This puts the program into an infinite loop.
 
 (define (louis-reasoner-pairs s t)
