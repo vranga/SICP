@@ -20,16 +20,16 @@
 
 ; S O L U T I O N
 
-; Explanation: Loius Reasoner's logic does not average the right quantities. Instead of
+; Explanation: Louis Reasoner's logic does not average the right quantities. Instead of
 ; averaging each value of the sensor data with the previous value, it averages each value
 ; with the previous *average*. So the smoothed signal will gradually drift away from the
 ; raw sensor signal.
 ; The attached graphs show how the different signals compare with each other. The first
 ; graph shows what happens when we do the two types of average-smoothing of a stream of
 ; random values. We can see that my implementation more closely tracks the raw signal
-; than Louis' implementation
+; than Louis' implementation.
 ;
-; The second graph shows the same graphs for a values produed by a parabolic funtion:
+; The second graph shows the same graphs for a values produced by a parabolic function:
 ; f(x) = x^2 - 15
 ; It is easy to see how Louis's stream of average values gradually diverges from the 
 ; raw signal whereas my average stream tracks the raw stream more closely.
