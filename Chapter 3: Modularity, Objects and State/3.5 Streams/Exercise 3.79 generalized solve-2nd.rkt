@@ -11,6 +11,7 @@
 	(define ddy
 		(f dy y)
 	)
+	y
 )
 
 (define (solve-2nd a b dt y0 dy0)
