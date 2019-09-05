@@ -1,5 +1,19 @@
 #lang racket
 
+; Exercise 2.32.  We can represent a set as a list of distinct elements, and we can represent
+; the set of all subsets of the set as a list of lists. For example, if the set is (1 2 3),
+; then the set of all subsets is (() (3) (2) (2 3) (1) (1 3) (1 2) (1 2 3)). Complete the
+; following definition of a procedure that generates the set of subsets of a set and give a
+; clear explanation of why it works:
+
+; (define (subsets s)
+;   (if (null? s)
+;       (list nil)
+;       (let ((rest (subsets (cdr s))))
+;         (append rest (map <??> rest)))))
+
+; SOLUTION
+
 (define (subsets s)
 	(if (null? s)
 		(list null)
@@ -28,10 +42,10 @@
 	)
 )
 
-; Explanation: This problem is identical to the count-change problem that appears earlier in this
-; book. Let's say that from a given set S, we pick any element e. Then, the elements in the set S' of
-; all subsets of S can be segregated into two groups: one whose members contain e and the other
-; whose members do not contain e.
+; Explanation: This problem is identical to the count-change problem that appears earlier in
+; this book. Let's say that from a given set S, we pick any element e. Then, the elements in
+; the set S' of all subsets of S can be segregated into two groups: one whose members contain
+; e and the other whose members do not contain e.
 
 ; The logic used here is as follows: The set S' of all subsets of a given set S is the union of
 ; the following two sets:
@@ -40,8 +54,8 @@
 ; 	Let's call this set P.
 ; 2.	The set Q generated from P by adding e to each element in P
 
-; The 'map' function above does exactly what is described in  step 2 above. The variable 'rest' is
-; the same as set P above.
+; The 'map' function above does exactly what is described in  step 2 above. The variable 'rest'
+; is the same as set P above.
 
 ; S' = P union Q
 

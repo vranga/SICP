@@ -1,5 +1,10 @@
 #lang racket
 
+; Exercise 2.41.  Write a procedure to find all ordered triples of distinct positive integers
+; i, j, and k less than or equal to a given integer n that sum to a given integer s.
+
+; SOLUTION
+
 (define (sum-of-triples n s)
 	; n is the upper limit for i, j and k
 	; s is the desired sum

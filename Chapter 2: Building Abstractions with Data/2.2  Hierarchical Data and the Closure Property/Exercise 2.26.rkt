@@ -1,3 +1,19 @@
+; Exercise 2.26.  Suppose we define x and y to be two lists:
+
+; (define x (list 1 2 3))
+; (define y (list 4 5 6))
+
+; What result is printed by the interpreter in response to evaluating each of the following
+; expressions:
+
+; (append x y)
+
+; (cons x y)
+
+; (list x y)
+
+; SOLUTION
+
 Welcome to DrRacket, version 6.11 [3m].
 Language: racket, with debugging; memory limit: 128 MB.
 > (define x (list 1 2 3))
