@@ -1,7 +1,8 @@
 #lang racket
 
-; Exercise 2.65.  Use the results of exercises 2.63 and  2.64 to give Theta(n) implementations
-; of union-set and intersection-set for sets implemented as (balanced) binary trees.
+; Exercise 2.65.  Use the results of exercises 2.63 and  2.64 to give Theta(n)
+; implementations of union-set and intersection-set for sets implemented as (balanced)
+; binary trees.
 
 (define (tree-union-set set1 set2)
 	; The input sets are binary trees

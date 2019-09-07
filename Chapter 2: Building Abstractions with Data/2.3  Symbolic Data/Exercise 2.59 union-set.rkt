@@ -1,5 +1,10 @@
 #lang racket
 
+; Exercise 2.59.  Implement the union-set operation for the unordered-list representation
+; of sets.
+
+; SOLUTION
+
 ; Implementation 1
 (define (union-set-simple set1 set2)
 	; Just adjoin each elements of set2 with set2

@@ -28,7 +28,11 @@
 
 ; Sha boom
 
-; How many bits are required for the encoding? What is the smallest number of bits that would be needed to encode this song if we used a fixed-length code for the eight-symbol alphabet?
+; How many bits are required for the encoding? What is the smallest number of bits that
+; would be needed to encode this song if we used a fixed-length code for the eight-symbol
+; alphabet?
+
+; SOLUTION
 
 (define (generate-huffman-tree pairs)
   (successive-merge (make-leaf-set pairs))
