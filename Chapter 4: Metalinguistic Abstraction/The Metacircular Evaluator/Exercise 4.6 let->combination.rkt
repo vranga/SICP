@@ -870,6 +870,8 @@ Language: racket, with debugging; memory limit: 4096 MB.
         (make-if (cond-predicate first) (sequence->exp (cond-actions first)) (expand-clauses rest)))))
   (car clauses)
   (cdr clauses))
+> (let->combination letexp3)
+'((lambda (a b c d) (* a b c d)) 10 20 30 45)
 > (driver-loop)
 
 
