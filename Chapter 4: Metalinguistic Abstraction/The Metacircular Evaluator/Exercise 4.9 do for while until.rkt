@@ -9,63 +9,6 @@
 
 ; S O L U T I O N
 
-; The 'do-while' construct can be as follows:
-;
-; (do
-;   (<one or more statements>)
-;   while (condition)
-; )
-; 
-; The derived expression for this would be:
-;
-; (begin
-;   (define (do-while-block)
-;     <statements>
-;     (if (condition)
-;       (do-while-block)
-;       (void)
-;     )
-;   )
-;   (do-while-block)
-; )
-; which is the same as:
-;
-; (begin
-;   (define do-while-block
-;     (lambda ()
-;       <statements>
-;       (if (condition)
-;         (do-while-block)
-;         (void)
-;       )
-;     )
-;   )
-;   (do-while-block)
-; )
-;
-; The 'for' construct can be as follows:
-;
-; (for (count <start>) (count <end>) inc
-;   (<one or more statements>)
-; )
-;
-; The derived expression for this would be:
-;
-; (define count <start>)
-; (define (for-block)
-;   (if (<= count <end>)
-;     <statements>
-;     (void)
-;   )
-;   (set! count (inc count))
-;   (for-block)
-; )
-; (for-block)
-;
-; where the variable 'count' is available for use inside the statement block and
-; 'inc' is a one-argument proc that increments what is supplied to it. The user of 
-; the 'for' construct must supply a definition for inc
-
 ; The 'while' construct can be as follows:
 ;
 ; (while (condition)
@@ -132,10 +75,14 @@
 (define (assignment-variable exp) (cadr exp))
 (define (assignment-value exp) (caddr exp))
 
+(define (make-assignment variable-name value)
+	(list 'set! variable-name value)
+)
+
 (define (EVAL-assignment exp env)
-	(display "In proc EVAL-assignment to evaluate: ")
-	(display exp)
-	(newline)
+	; (display "In proc EVAL-assignment to evaluate: ")
+	; (display exp)
+	; (newline)
 	(set-variable-value!
 		(assignment-variable exp)
 		(EVAL (assignment-value exp) env)
@@ -192,14 +139,14 @@
 	)
 )
 
-(define (make-define variable-name value)
+(define (make-definition variable-name value)
 	(list 'define variable-name value)
 )
 
 (define (EVAL-definition exp env)
-	(display "In proc EVAL-definition to evaluate: ")
-	(display exp)
-	(newline)
+	; (display "In proc EVAL-definition to evaluate: ")
+	; (display exp)
+	; (newline)
 	(define-variable!
 		(definition-variable exp)
 		(EVAL (definition-value exp) env)
@@ -277,9 +224,9 @@
 )
 
 (define (EVAL-if exp env)
-	(display "In proc EVAL-if to evaluate: ")
-	(display exp)
-	(newline)
+	; (display "In proc EVAL-if to evaluate: ")
+	; (display exp)
+	; (newline)
 	(if (true? (EVAL (if-predicate exp) env))
 		(EVAL (if-consequent exp) env)
 		(EVAL (if-alternative exp) env)
@@ -295,9 +242,9 @@
 )
 
 (define (EVAL-lambda exp env)
-	(display "In proc EVAL-lambda to evaluate: ")
-	(display exp)
-	(newline)
+	; (display "In proc EVAL-lambda to evaluate: ")
+	; (display exp)
+	; (newline)
 	(make-procedure
 		(lambda-parameters exp)
 		(lambda-body exp)
@@ -349,7 +296,7 @@
 			; )
 			(make-begin
 				(list
-					(make-define
+					(make-definition
 						(named-let-proc-name exp)
 						(make-lambda parameters (let-body exp))
 					)
@@ -453,9 +400,9 @@
 (define (make-begin seq) (cons 'begin seq))
 
 (define (EVAL-begin exp env)
-	(display "In proc EVAL-begin to evaluate: ")
-	(display exp)
-	(newline)
+	; (display "In proc EVAL-begin to evaluate: ")
+	; (display exp)
+	; (newline)
 	(EVAL-sequence (begin-actions exp) env)
 )
 
@@ -699,7 +646,7 @@
 	; )
 	(make-begin
 		(list
-			(make-define
+			(make-definition
 				'do-while-block
 				(make-lambda
 					null
@@ -721,16 +668,135 @@
 )
 
 (define (EVAL-do-while exp env)
-	(display "In proc EVAL-do-while to evaluate: ")
-	(display exp)
-	(newline)
-	(display "Converted ")
+	; (display "In proc EVAL-do-while to evaluate: ")
+	; (display exp)
+	; (newline)
+	(display "EVAL-do-while converted ")
 	(display exp)
 	(display " to: ")
 	(newline)
 	(display (do-while->combination exp))
 	(newline)
 	(EVAL (do-while->combination exp) env)
+)
+
+; for blocks
+; The 'for' construct can be as follows:
+;
+; (for (count-var <start>) (count-var <end>) inc
+;   (<one or more statements>)
+; )
+;
+
+(define (for? exp) (tagged-list? exp 'for))
+
+(define (for-count-var exp)
+	(caadr exp)
+)
+
+(define (for-count-start exp)
+	(cadr (cadr exp))
+)
+
+(define (for-count-end exp)
+	(cadr (caddr exp))
+)
+
+(define (for-inc-proc exp)
+	(cadddr exp)
+)
+
+(define (for-statement-block exp)
+	(cddddr exp)
+)
+
+(define (for->combination exp)
+	; The derived expression for this would be:
+	;
+	; (begin
+	;   (define count-var <start>)
+	;   (define (for-block)
+	;     (if (<= count-var <end>)
+	;		(begin
+	;         <statements>
+	;         (set! count-var (inc count-var))
+	;         (for-block)
+	;		)
+	;       'done
+	;     )
+	;   )
+	;   (for-block)
+	; )
+	;
+	; which is the same as:
+	;
+	; (begin
+	;   (define count-var <start>)
+	;   (define for-block
+	;     (lambda ()
+	;       (if (<= count-var <end>)
+	;         (begin
+	;           <statements>
+	;           (set! count-var (inc count-var))
+	;           (for-block)
+	;         )
+	;         'done
+	;       )
+	;     )
+	;   )
+	;   (for-block)
+	; )
+	;
+	; where the variable 'count-var' is available for use inside the statement block and
+	; 'inc' is a one-argument proc that increments what is supplied to it. The user of 
+	; the 'for' construct must supply a definition for inc
+	
+	(make-begin
+		(list ; 3 items
+			(make-definition
+				(for-count-var exp)
+				(for-count-start exp)
+			)
+			(make-definition
+				'for-block
+				(make-lambda
+					null
+					(list
+						(make-if
+							(list '<= (for-count-var exp) (for-count-end exp))
+							(make-begin
+								(append
+									(for-statement-block exp)
+									(list
+										(make-assignment
+											(for-count-var exp)
+											(list (for-inc-proc exp) (for-count-var exp))
+										)
+										'(for-block)
+									)
+								)
+							)
+							'(void)
+						)
+					)
+				)
+			)
+			'(for-block)
+		)
+	)
+)
+
+(define (EVAL-for exp env)
+	; (display "In proc EVAL-for to evaluate: ")
+	; (display exp)
+	; (newline)
+	(display "EVAL-for converted ")
+	(display exp)
+	(display " to: ")
+	(newline)
+	(display (for->combination exp))
+	(newline)
+	(EVAL (for->combination exp) env)
 )
 
 ; Compound Procedures
@@ -782,10 +848,13 @@
 		(list 'void void)
 		(list '> >)
 		(list '< <)
+		(list '>= >=)
+		(list '<= <=)
 		(list '= =)
 		(list '+ +)
 		(list '- -)
 		(list '* *)
+		(list '/ /)
 	)
 )
 
@@ -962,7 +1031,7 @@
 (put 'let 'eval EVAL-let)
 (put 'let* 'eval EVAL-let*)
 (put 'do 'eval EVAL-do-while)
-; (put 'for 'eval EVAL-for)
+(put 'for 'eval EVAL-for)
 ; (put 'while 'eval EVAL-while)
 
 ; procedure "APPLY"
@@ -1096,7 +1165,6 @@ Language: racket, with debugging; memory limit: 4096 MB.
 
 [Metacircular Evaluator Input] >>>
 (define x 1)
-In proc EVAL-definition to evaluate: (define x 1)
 
 [Metacircular Evaluator Output] >>> ok
 [Metacircular Evaluator Input] >>>
@@ -1105,42 +1173,89 @@ x
 [Metacircular Evaluator Output] >>> 1
 [Metacircular Evaluator Input] >>>
 (do
- 		(display '(x after defining:))
+ 		(display 'x:)
  		(display x)
  		(newline)
  		(set! x (+ x 2))
- 		(display '(x after setting: ))
+ 		(display '(x after setting:))
  		(display x)
  		(newline)
  		while (< x 10)
-	)
-In proc EVAL-do-while to evaluate: (do (display '(x after defining:)) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) while (< x 10))
-Converted (do (display '(x after defining:)) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) while (< x 10)) to: 
-(begin (define do-while-block (lambda () (display '(x after defining:)) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) (if (< x 10) (do-while-block) (void)))) (do-while-block))
-In proc EVAL-begin to evaluate: (begin (define do-while-block (lambda () (display '(x after defining:)) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) (if (< x 10) (do-while-block) (void)))) (do-while-block))
-In proc EVAL-definition to evaluate: (define do-while-block (lambda () (display '(x after defining:)) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) (if (< x 10) (do-while-block) (void))))
-In proc EVAL-lambda to evaluate: (lambda () (display '(x after defining:)) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) (if (< x 10) (do-while-block) (void)))
-(x after defining:)1
-In proc EVAL-assignment to evaluate: (set! x (+ x 2))
+)
+In proc EVAL-do-while to evaluate: (do (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) while (< x 10))
+Converted (do (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) while (< x 10)) to: 
+(begin (define do-while-block (lambda () (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) (if (< x 10) (do-while-block) (void)))) (do-while-block))
+x:1
 (x after setting:)3
-In proc EVAL-if to evaluate: (if (< x 10) (do-while-block) (void))
-(x after defining:)3
-In proc EVAL-assignment to evaluate: (set! x (+ x 2))
+x:3
 (x after setting:)5
-In proc EVAL-if to evaluate: (if (< x 10) (do-while-block) (void))
-(x after defining:)5
-In proc EVAL-assignment to evaluate: (set! x (+ x 2))
+x:5
 (x after setting:)7
-In proc EVAL-if to evaluate: (if (< x 10) (do-while-block) (void))
-(x after defining:)7
-In proc EVAL-assignment to evaluate: (set! x (+ x 2))
+x:7
 (x after setting:)9
-In proc EVAL-if to evaluate: (if (< x 10) (do-while-block) (void))
-(x after defining:)9
-In proc EVAL-assignment to evaluate: (set! x (+ x 2))
+x:9
 (x after setting:)11
-In proc EVAL-if to evaluate: (if (< x 10) (do-while-block) (void))
 
 [Metacircular Evaluator Output] >>> #<void>
 [Metacircular Evaluator Input] >>>
+(define (inc val)
+	(+ val 1)
+)
 
+[Metacircular Evaluator Output] >>> ok
+[Metacircular Evaluator Input] >>>
+(inc 101)
+
+[Metacircular Evaluator Output] >>> 102
+[Metacircular Evaluator Input] >>>
+(for (i 1) (i 40) inc
+	(display i)
+	(newline)
+)
+In proc EVAL-for to evaluate: (for (i 1) (i 40) inc (display i) (newline))
+Converted (for (i 1) (i 40) inc (display i) (newline)) to: 
+(begin (define i 1) (define for-block (lambda () (if (<= i 40) (begin (display i) (newline) (set! i (inc i)) (for-block)) (void)))) (for-block))
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+
+[Metacircular Evaluator Output] >>> #<void>
+[Metacircular Evaluator Input] >>>
+.
