@@ -9,22 +9,6 @@
 
 ; S O L U T I O N
 
-; The 'while' construct can be as follows:
-;
-; (while (condition)
-;    (<one or more statements>)
-; )
-; The derived expression for this would be:
-;
-; (define (while-block)
-;  (if (condition)
-;    <statements>
-;	 (void)
-;  )
-;  (while-block)
-; )
-; (while-block)
-
 (require rnrs/mutable-pairs-6)
 (require compatibility/mlist)
 
@@ -584,6 +568,17 @@
 	)
 )
 
+; do blocks
+(define (EVAL-do exp env)
+	(cond
+		((do-while? exp) (EVAL-do-while exp env))
+		((do-until? exp) (EVAL-do-until exp env))
+		(else
+			(error "Invalid do expression: " exp)
+		)
+	)
+)
+
 ; do-while blocks
 ; The 'do-while' construct can be as follows:
 ;
@@ -592,7 +587,12 @@
 ;   while (condition)
 ; )
 ; 
-(define (do-while? exp) (tagged-list? exp 'do))
+(define (do-while? exp)
+	(and
+		(tagged-list? exp 'do)
+		(eq? (last-but-one-term exp) 'while)
+	)
+)
 
 (define (do-while-statement-block exp)
 	(define (statement-block exp)
@@ -618,51 +618,22 @@
 )
 
 (define (do-while->combination exp)
-	; The derived expression for this would be:
-	;
+	; Use the while block construct to convert it as follows:
 	; (begin
-	;   (define (do-while-block)
+	;   <statements>
+	;   (while (condition)
 	;     <statements>
-	;     (if (condition)
-	;       (do-while-block)
-	;       (void)
-	;     )
 	;   )
-	;   (do-while-block)
-	; )
-	; which is the same as:
-	;
-	; (begin
-	;   (define do-while-block
-	;     (lambda ()
-	;       <statements>
-	;       (if (condition)
-	;         (do-while-block)
-	;         (void)
-	;       )
-	;     )
-	;   )
-	;   (do-while-block)
 	; )
 	(make-begin
-		(list
-			(make-definition
-				'do-while-block
-				(make-lambda
-					null
-					(append
-						(do-while-statement-block exp)
-						(list
-							(make-if
-								(do-while-condition exp)
-								'(do-while-block)
-								'(void)
-							)
-						)
-					)
+		(append
+			(do-while-statement-block exp)
+			(list
+				(make-while
+					(do-while-condition exp)
+					(do-while-statement-block exp)
 				)
 			)
-			'(do-while-block)
 		)
 	)
 )
@@ -678,6 +649,78 @@
 	(display (do-while->combination exp))
 	(newline)
 	(EVAL (do-while->combination exp) env)
+)
+
+; do-until blocks
+; The 'do-until' construct can be as follows:
+;
+; (do
+;   (<one or more statements>)
+;   until (condition)
+; )
+; 
+(define (do-until? exp)
+	(and
+		(tagged-list? exp 'do)
+		(eq? (last-but-one-term exp) 'until)
+	)
+)
+
+(define (do-until-statement-block exp)
+	(define (statement-block exp)
+		(if (not (eq? (car exp) 'until))
+			(cons (car exp) (statement-block (cdr exp)))
+			null
+		)
+	)
+	(statement-block (cdr exp))
+)
+
+(define (do-until-condition exp)
+	(define (condition exp)
+		(if (eq? (car exp) 'until)
+			(if (not (pair? (cdr exp)))
+				(error "Invalid do-until block: No terminating condition found")
+				(cadr exp)
+			)
+			(condition (cdr exp))
+		)
+	)
+	(condition (cdr exp))
+)
+
+(define (do-until->combination exp)
+	; Use the while block construct to convert it as follows:
+	; (begin
+	;   <statements>
+	;   (while (not (condition))
+	;     <statements>
+	;   )
+	; )
+	(make-begin
+		(append
+			(do-until-statement-block exp)
+			(list
+				(make-while
+					(list 'not (do-until-condition exp))
+					(do-until-statement-block exp)
+				)
+			)
+		)
+	)
+)
+
+(define (EVAL-do-until exp env)
+	; (display "In proc EVAL-do-until to evaluate: ")
+	; (display exp)
+	; (newline)
+	(display "EVAL-do-until converted ")
+	(display exp)
+	(display " to: ")
+	(newline)
+	(display (do-until->combination exp))
+	(newline)
+	(EVAL (do-until->combination exp) env)
 )
 
 ; for blocks
@@ -776,7 +819,7 @@
 									)
 								)
 							)
-							'(void)
+							''done
 						)
 					)
 				)
@@ -797,6 +840,93 @@
 	(display (for->combination exp))
 	(newline)
 	(EVAL (for->combination exp) env)
+)
+
+; while blocks
+; The 'while' construct can be as follows:
+;
+; (while (condition)
+;    <one or more statements>
+; )
+
+(define (while? exp) (tagged-list? exp 'while))
+
+(define (while-statement-block exp)
+	(cddr exp)
+)
+
+(define (while-condition exp)
+	(cadr exp)
+)
+
+(define (while->combination exp)
+	; The derived expression for this would be:
+	;
+	; (define (while-block)
+	;  (if (condition)
+	;    (begin
+	;      <statements>
+	;      (while-block)
+	;    )
+	;	 'done
+	;  )
+	; )
+	; (while-block)
+	;
+	; which is the same as:
+	;
+	; (define while-block
+	;  (lamdba ()
+	;    (if (condition)
+	;      (begin
+	;        <statements>
+	;        (while-block)
+	;      )
+	;      'done
+	;    )
+	;  )
+	; )
+	; (while-block)
+	(make-begin
+		(list
+			(make-definition
+				'while-block
+				(make-lambda
+					null
+					(list
+						(make-if
+							(while-condition exp)
+							(make-begin
+								(append
+									(while-statement-block exp)
+									(list '(while-block))
+								)
+							)
+							''done
+						)
+					)
+				)
+			)
+			'(while-block)
+		)
+	)
+)
+
+(define (make-while condition statements)
+	(cons 'while (cons condition statements))
+)
+
+(define (EVAL-while exp env)
+	; (display "In proc EVAL-while to evaluate: ")
+	; (display exp)
+	; (newline)
+	(display "EVAL-while converted ")
+	(display exp)
+	(display " to: ")
+	(newline)
+	(display (while->combination exp))
+	(newline)
+	(EVAL (while->combination exp) env)
 )
 
 ; Compound Procedures
@@ -945,6 +1075,19 @@
 	)
 )
 
+(define (last-but-one-term exp)
+	(if (pair? exp)
+		(if (pair? (cdr exp))
+			(if (null? (cddr exp))
+				(car exp)
+				(last-but-one-term (cdr exp))
+			)
+			(error "Invalid expression: " exp)
+		)
+		(error "Invalid expression: " exp)
+	)
+)
+
 ; Data-driven proc table definitions
 
 (define op-table (mlist))
@@ -1030,9 +1173,9 @@
 (put 'lambda 'eval EVAL-lambda)
 (put 'let 'eval EVAL-let)
 (put 'let* 'eval EVAL-let*)
-(put 'do 'eval EVAL-do-while)
+(put 'do 'eval EVAL-do)
 (put 'for 'eval EVAL-for)
-; (put 'while 'eval EVAL-while)
+(put 'while 'eval EVAL-while)
 
 ; procedure "APPLY"
 (define (APPLY procedure arguments)
@@ -1173,20 +1316,21 @@ x
 [Metacircular Evaluator Output] >>> 1
 [Metacircular Evaluator Input] >>>
 (do
- 		(display 'x:)
- 		(display x)
- 		(newline)
- 		(set! x (+ x 2))
- 		(display '(x after setting:))
- 		(display x)
- 		(newline)
- 		while (< x 10)
+    (display 'x:)
+    (display x)
+    (newline)
+    (set! x (+ x 2))
+    (display '(x after setting:))
+    (display x)
+    (newline)
+    while (< x 10)
 )
-In proc EVAL-do-while to evaluate: (do (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) while (< x 10))
-Converted (do (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) while (< x 10)) to: 
-(begin (define do-while-block (lambda () (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) (if (< x 10) (do-while-block) (void)))) (do-while-block))
+EVAL-do-while converted (do (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) while (< x 10)) to: 
+(begin (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) (while (< x 10) (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline)))
 x:1
 (x after setting:)3
+EVAL-while converted (while (< x 10) (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline)) to: 
+(begin (define while-block (lambda () (if (< x 10) (begin (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) (while-block)) 'done))) (while-block))
 x:3
 (x after setting:)5
 x:5
@@ -1196,25 +1340,24 @@ x:7
 x:9
 (x after setting:)11
 
-[Metacircular Evaluator Output] >>> #<void>
+[Metacircular Evaluator Output] >>> done
 [Metacircular Evaluator Input] >>>
 (define (inc val)
-	(+ val 1)
+    (+ val 1)
 )
 
 [Metacircular Evaluator Output] >>> ok
 [Metacircular Evaluator Input] >>>
-(inc 101)
+(inc 100)
 
-[Metacircular Evaluator Output] >>> 102
+[Metacircular Evaluator Output] >>> 101
 [Metacircular Evaluator Input] >>>
 (for (i 1) (i 40) inc
-	(display i)
-	(newline)
+    (display i)
+    (newline)
 )
-In proc EVAL-for to evaluate: (for (i 1) (i 40) inc (display i) (newline))
-Converted (for (i 1) (i 40) inc (display i) (newline)) to: 
-(begin (define i 1) (define for-block (lambda () (if (<= i 40) (begin (display i) (newline) (set! i (inc i)) (for-block)) (void)))) (for-block))
+EVAL-for converted (for (i 1) (i 40) inc (display i) (newline)) to: 
+(begin (define i 1) (define for-block (lambda () (if (<= i 40) (begin (display i) (newline) (set! i (inc i)) (for-block)) 'done))) (for-block))
 1
 2
 3
@@ -1256,6 +1399,86 @@ Converted (for (i 1) (i 40) inc (display i) (newline)) to:
 39
 40
 
-[Metacircular Evaluator Output] >>> #<void>
+[Metacircular Evaluator Output] >>> done
+[Metacircular Evaluator Input] >>>
+(define x 1)
+
+[Metacircular Evaluator Output] >>> ok
+[Metacircular Evaluator Input] >>>
+x
+
+[Metacircular Evaluator Output] >>> 1
+[Metacircular Evaluator Input] >>>
+x
+
+[Metacircular Evaluator Output] >>> 1
+[Metacircular Evaluator Input] >>>
+(do
+    (display 'x:)
+    (display x)
+    (newline)
+    (set! x (+ x 2))
+    (display '(x after setting:))
+    (display x)
+    (newline)
+    until (> x 30)
+)
+EVAL-do-until converted (do (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) until (> x 30)) to: 
+(begin (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) (while (not (> x 30)) (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline)))
+x:1
+(x after setting:)3
+EVAL-while converted (while (not (> x 30)) (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline)) to: 
+(begin (define while-block (lambda () (if (not (> x 30)) (begin (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) (while-block)) 'done))) (while-block))
+x:3
+(x after setting:)5
+x:5
+(x after setting:)7
+x:7
+(x after setting:)9
+x:9
+(x after setting:)11
+x:11
+(x after setting:)13
+x:13
+(x after setting:)15
+x:15
+(x after setting:)17
+x:17
+(x after setting:)19
+x:19
+(x after setting:)21
+x:21
+(x after setting:)23
+x:23
+(x after setting:)25
+x:25
+(x after setting:)27
+x:27
+(x after setting:)29
+x:29
+(x after setting:)31
+
+[Metacircular Evaluator Output] >>> done
+[Metacircular Evaluator Input] >>>
+x
+
+[Metacircular Evaluator Output] >>> 31
+[Metacircular Evaluator Input] >>>
+(while (< x 50)
+    (display x)
+    (newline)
+    (set! x (+ x 3))
+)
+EVAL-while converted (while (< x 50) (display x) (newline) (set! x (+ x 3))) to: 
+(begin (define while-block (lambda () (if (< x 50) (begin (display x) (newline) (set! x (+ x 3)) (while-block)) 'done))) (while-block))
+31
+34
+37
+40
+43
+46
+49
+
+[Metacircular Evaluator Output] >>> done
 [Metacircular Evaluator Input] >>>
 .
