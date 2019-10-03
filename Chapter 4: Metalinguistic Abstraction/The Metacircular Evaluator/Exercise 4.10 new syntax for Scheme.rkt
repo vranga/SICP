@@ -7,7 +7,7 @@
 
 ; S O L U T I O N
 
-; Here are the syntax changes I am making:
+; Here are the syntax changes I made:
 ; 1. Comparison expressions of like (< x y) changed to a more intuitive (x < y). This
 ;    applies to the following operators: <, >, <=, >= and ==. Note that for equality I have
 ;    introduced the operator "==". This is because I want to reserve "=" for assignments
@@ -1374,6 +1374,10 @@ Language: racket, with debugging; memory limit: 4096 MB.
 
 [Metacircular Evaluator Output] >>> ok
 [Metacircular Evaluator Input] >>>
+x
+
+[Metacircular Evaluator Output] >>> 20
+[Metacircular Evaluator Input] >>>
 (x == 20)
 
 [Metacircular Evaluator Output] >>> #t
@@ -1409,10 +1413,6 @@ Language: racket, with debugging; memory limit: 4096 MB.
 ((+ x 5) == (- (+ x 10) 5))
 
 [Metacircular Evaluator Output] >>> #t
-[Metacircular Evaluator Input] >>>
-(define x 20)
-
-[Metacircular Evaluator Output] >>> ok
 [Metacircular Evaluator Input] >>>
 (x = -9)
 
@@ -1496,7 +1496,8 @@ y
 		(display "y is less than x by ")
 		(display (- x y))
 		(newline)
-))
+	)
+)
 x is less than y by 3
 
 [Metacircular Evaluator Output] >>> #<void>
@@ -1504,10 +1505,6 @@ x is less than y by 3
 (x = 16)
 
 [Metacircular Evaluator Output] >>> ok
-[Metacircular Evaluator Input] >>>
-x
-
-[Metacircular Evaluator Output] >>> 16
 [Metacircular Evaluator Input] >>>
 (if (x < y)
     then
@@ -1552,10 +1549,6 @@ y is less than x by 0
 (x = 44)
 
 [Metacircular Evaluator Output] >>> ok
-[Metacircular Evaluator Input] >>>
-x
-
-[Metacircular Evaluator Output] >>> 44
 [Metacircular Evaluator Input] >>>
 (if (x < y)
     then
