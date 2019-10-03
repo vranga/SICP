@@ -13,6 +13,7 @@
 ;    introduced the operator "==". This is because I want to reserve "=" for assignments
 ;    and definitions
 ; 2. Assignment syntax changed from (set! x value) to (x = value)
+; 3. 'if' syntax changed (see "if" section below)
 
 (require rnrs/mutable-pairs-6)
 (require compatibility/mlist)
@@ -208,26 +209,41 @@
 )
 
 ; 'if' Expressions
+; Modified syntax is:
+; (if <predicate>
+;   then
+;     <consequent>
+;   else
+;     <alternative>
+; )
 (define (if? exp) (tagged-list? exp 'if))
-(define (if-predicate exp) (cadr exp))
-(define (if-consequent exp) (caddr exp))
-(define (if-alternative exp)
-	(if (not (null? (cdddr exp)))
-		(cadddr exp)
-		'false
+(define (valid-if-expression? exp)
+	(and
+		(if? exp)
+		(eq? (length exp) 6)
+		(eq? (caddr exp) 'then)
+		(eq? (cadr (cdddr exp)) 'else)
 	)
 )
+(define (if-predicate exp) (cadr exp))
+(define (if-consequent exp) (cadddr exp))
+(define (if-alternative exp)
+	(cadr (cddddr exp))
+)
 (define (make-if predicate consequent alternative)
-	(list 'if predicate consequent alternative)
+	(list 'if predicate 'then consequent 'else alternative)
 )
 
 (define (EVAL-if exp env)
 	; (display "In proc EVAL-if to evaluate: ")
 	; (display exp)
 	; (newline)
-	(if (true? (EVAL (if-predicate exp) env))
-		(EVAL (if-consequent exp) env)
-		(EVAL (if-alternative exp) env)
+	(if (valid-if-expression? exp)
+		(if (true? (EVAL (if-predicate exp) env))
+			(EVAL (if-consequent exp) env)
+			(EVAL (if-alternative exp) env)
+		)
+		(error "Invalid if expression: " exp)
 	)
 )
 
@@ -1425,5 +1441,138 @@ x
 (* x (/ x (- x (+ x -9))))
 
 [Metacircular Evaluator Output] >>> 9
+[Metacircular Evaluator Input] >>>
+(define (append x y) (if (null? x) then y else (cons (car x) (append (cdr x) y))))
+
+[Metacircular Evaluator Output] >>> ok
+[Metacircular Evaluator Input] >>>
+(append '(q w e r t y) '(z x c v b n))
+
+[Metacircular Evaluator Output] >>> (q w e r t y z x c v b n)
+[Metacircular Evaluator Input] >>>
+(cond ((assoc 'b '((a 1) (b 2))) => cadr)
+      (else false))
+In proc EVAL-cond to evaluate: (cond ((assoc 'b '((a 1) (b 2))) => cadr) (else false))
+
+[Metacircular Evaluator Output] >>> 2
+[Metacircular Evaluator Input] >>>
+(cond ((assoc 'a '((a 1) (b 2))) => cadr)
+      (else false))
+In proc EVAL-cond to evaluate: (cond ((assoc 'a '((a 1) (b 2))) => cadr) (else false))
+
+[Metacircular Evaluator Output] >>> 1
+[Metacircular Evaluator Input] >>>
+(cond ((assoc 'c '((a 1) (b 2))) => cadr)
+      (else false))
+In proc EVAL-cond to evaluate: (cond ((assoc 'c '((a 1) (b 2))) => cadr) (else false))
+
+[Metacircular Evaluator Output] >>> #f
+[Metacircular Evaluator Input] >>>
+(define x 14)
+
+[Metacircular Evaluator Output] >>> ok
+[Metacircular Evaluator Input] >>>
+x
+
+[Metacircular Evaluator Output] >>> 14
+[Metacircular Evaluator Input] >>>
+(define y 17)
+
+[Metacircular Evaluator Output] >>> ok
+[Metacircular Evaluator Input] >>>
+y
+
+[Metacircular Evaluator Output] >>> 17
+[Metacircular Evaluator Input] >>>
+(if (x < y)
+    then
+	(begin
+		(display "x is less than y by ")
+		(display (- y x))
+		(newline)
+	)
+    else
+	(begin
+		(display "y is less than x by ")
+		(display (- x y))
+		(newline)
+))
+x is less than y by 3
+
+[Metacircular Evaluator Output] >>> #<void>
+[Metacircular Evaluator Input] >>>
+(x = 16)
+
+[Metacircular Evaluator Output] >>> ok
+[Metacircular Evaluator Input] >>>
+x
+
+[Metacircular Evaluator Output] >>> 16
+[Metacircular Evaluator Input] >>>
+(if (x < y)
+    then
+	(begin
+		(display "x is less than y by ")
+		(display (- y x))
+		(newline)
+	)
+    else
+	(begin
+		(display "y is less than x by ")
+		(display (- x y))
+		(newline)
+	)
+)
+x is less than y by 1
+
+[Metacircular Evaluator Output] >>> #<void>
+[Metacircular Evaluator Input] >>>
+(x = 17)
+
+[Metacircular Evaluator Output] >>> ok
+[Metacircular Evaluator Input] >>>
+(if (x < y)
+    then
+	(begin
+		(display "x is less than y by ")
+		(display (- y x))
+		(newline)
+	)
+    else
+	(begin
+		(display "y is less than x by ")
+		(display (- x y))
+		(newline)
+	)
+)
+y is less than x by 0
+
+[Metacircular Evaluator Output] >>> #<void>
+[Metacircular Evaluator Input] >>>
+(x = 44)
+
+[Metacircular Evaluator Output] >>> ok
+[Metacircular Evaluator Input] >>>
+x
+
+[Metacircular Evaluator Output] >>> 44
+[Metacircular Evaluator Input] >>>
+(if (x < y)
+    then
+	(begin
+		(display "x is less than y by ")
+		(display (- y x))
+		(newline)
+	)
+    else
+	(begin
+		(display "y is less than x by ")
+		(display (- x y))
+		(newline)
+	)
+)
+y is less than x by 27
+
+[Metacircular Evaluator Output] >>> #<void>
 [Metacircular Evaluator Input] >>>
 .
