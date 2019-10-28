@@ -4,7 +4,7 @@
 ; list of bindings, where each binding is a name-value pair. Rewrite the environment operations to
 ;  use this alternative representation.
 
-; SOLUTION
+; S O L U T I O N
 
 (require rnrs/mutable-pairs-6)
 (require compatibility/mlist)
