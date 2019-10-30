@@ -49,24 +49,15 @@
 
 (define (text-of-quotation exp) (cadr exp))
 
-; Assignment Expressions Syntax is (variable_name = value)
+; Assignment Expressions
 (define (assignment? exp)
-	(if (pair? (cdr exp))
-		(if (eq? (length exp) 3)
-			(if (and (eq? (cadr exp) '=) (variable? (car exp)))
-					true
-					false
-			)
-			false
-		)
-		false
-	)
+	(tagged-list? exp 'set!)
 )
-(define (assignment-variable exp) (car exp))
+(define (assignment-variable exp) (cadr exp))
 (define (assignment-value exp) (caddr exp))
 
 (define (make-assignment variable-name value)
-	(list variable-name '= value)
+	(list 'set! variable-name value)
 )
 
 (define (EVAL-assignment exp env)
@@ -83,24 +74,21 @@
 
 (define (set-variable-value! var val env)
 	(define (env-loop env)
-		(define (scan vars vals)
+		(define (scan frame)
 			(cond
-				((null? vars)
+				((null? frame)
 					(env-loop (enclosing-environment env))
 				)
-				((eq? var (car vars))
-					(set-mcar! vals val)
+				((eq? var (car (mcar frame)))
+					(set-mcar! frame (cons var val))
 				)
-				(else (scan (cdr vars) (mcdr vals)))
+				(else (scan (mcdr frame)))
 			)
 		)
 		(if (eq? env the-empty-environment)
 			(error "Unbound variable -- SET!" var)
 			(let ((frame (first-frame env)))
-				(scan
-					(frame-variables frame)
-					(frame-values frame)
-				)
+				(scan frame)
 			)
 		)
 	)
@@ -147,21 +135,18 @@
 
 (define (define-variable! var val env)
 	(let ((frame (first-frame env)))
-		(define (scan vars vals)
+		(define (scan frame)
 			(cond
-				((null? vars)
-					(add-binding-to-frame! var val frame)
+				((null? frame)
+					(add-binding-to-env! var val env)
 				)
-				((eq? var (car vars))
-					(set-mcar! vals val)
+				((eq? var (car (mcar frame)))
+					(set-mcar! frame (cons var val))
 				)
-				(else (scan (cdr vars) (mcdr vals)))
+				(else (scan (mcdr frame)))
 			)
 		)
-		(scan
-			(frame-variables frame)
-			(frame-values frame)
-		)
+		(scan frame)
 	)
 )
 
@@ -173,26 +158,23 @@
 	; (display var)
 	; (newline)
 	(define (env-loop env)
-		(define (scan vars vals)
+		(define (scan frame)
 			(cond
-				((null? vars)
+				((null? frame)
 					(env-loop (enclosing-environment env))
 				)
-				((eq? var (car vars))
-					(mcar vals)
+				((eq? var (car (mcar frame)))
+					(cdr (mcar frame))
 				)
 				(else
-					(scan (cdr vars) (mcdr vals))
+					(scan (mcdr frame))
 				)
 			)
 		)
 		(if (eq? env the-empty-environment)
 			(error "Unbound variable" var)
 			(let ((frame (first-frame env)))
-				(scan
-					(frame-variables frame)
-					(frame-values frame)
-				)
+				(scan frame)
 			)
 		)
 	)
@@ -200,41 +182,26 @@
 )
 
 ; 'if' Expressions
-; Modified syntax is:
-; (if <predicate>
-;   then
-;     <consequent>
-;   else
-;     <alternative>
-; )
 (define (if? exp) (tagged-list? exp 'if))
-(define (valid-if-expression? exp)
-	(and
-		(if? exp)
-		(eq? (length exp) 6)
-		(eq? (caddr exp) 'then)
-		(eq? (cadr (cdddr exp)) 'else)
+(define (if-predicate exp) (cadr exp))
+(define (if-consequent exp) (caddr exp))
+(define (if-alternative exp)
+	(if (not (null? (cdddr exp)))
+		(cadddr exp)
+		'false
 	)
 )
-(define (if-predicate exp) (cadr exp))
-(define (if-consequent exp) (cadddr exp))
-(define (if-alternative exp)
-	(cadr (cddddr exp))
-)
 (define (make-if predicate consequent alternative)
-	(list 'if predicate 'then consequent 'else alternative)
+	(list 'if predicate consequent alternative)
 )
 
 (define (EVAL-if exp env)
 	; (display "In proc EVAL-if to evaluate: ")
 	; (display exp)
 	; (newline)
-	(if (valid-if-expression? exp)
-		(if (true? (EVAL (if-predicate exp) env))
-			(EVAL (if-consequent exp) env)
-			(EVAL (if-alternative exp) env)
-		)
-		(error "Invalid if expression: " exp)
+	(if (true? (EVAL (if-predicate exp) env))
+		(EVAL (if-consequent exp) env)
+		(EVAL (if-alternative exp) env)
 	)
 )
 
@@ -952,41 +919,8 @@
 
 ; Compound Procedures
 (define (application? exp) (pair? exp))
-(define (operator exp)
-	(cond
-		((comparison? exp) (cadr exp))
-		((assignment? exp) (cadr exp))
-		(else
-			(car exp)
-		)
-	)
-)
-(define (operands exp)
-	(cond
-		((comparison? exp) (cons (car exp) (cddr exp)))
-		(else
-			(cdr exp)
-		)
-	)
-)
-(define (comparison? exp)
-	(if (pair? (cdr exp))
-		(if (eq? (length exp) 3)
-			(if (or
-					(eq? (cadr exp) '<)
-					(eq? (cadr exp) '>)
-					(eq? (cadr exp) '<=)
-					(eq? (cadr exp) '>=)
-					(eq? (cadr exp) '==)
-				)
-					true
-					false
-			)
-			false
-		)
-		false
-	)
-)
+(define (operator exp) (car exp))
+(define (operands exp) (cdr exp))
 (define (no-operands? ops) (null? ops))
 (define (first-operand ops) (car ops))
 (define (rest-operands ops) (cdr ops))
@@ -1034,7 +968,7 @@
 		(list '< <)
 		(list '>= >=)
 		(list '<= <=)
-		(list '== =)
+		(list '= =)
 		(list '+ +)
 		(list '- -)
 		(list '* *)
@@ -1047,9 +981,7 @@
 )
 
 (define (primitive-procedure-objects)
-	(list->mlist
-		(map (lambda (proc) (list 'primitive (car (cdr proc)))) primitive-procedures)
-	)
+	(map (lambda (proc) (list 'primitive (car (cdr proc)))) primitive-procedures)
 )
 
 ; Environment related procedures
@@ -1057,17 +989,15 @@
 (define (enclosing-environment env) (cdr env))
 (define (first-frame env) (car env))
 (define the-empty-environment '())
-(define (frame-variables frame) (mcar frame))
-(define (frame-values frame) (mcdr frame))
-(define (add-binding-to-frame! var val frame)
-	(set-mcar! frame (cons var (mcar frame)))
-	(set-mcdr! frame (mcons val (mcdr frame)))
+
+(define (add-binding-to-env! var val env)
+	(mappend! (first-frame env) (mlist (cons var val)))
 )
 
 (define (extend-environment vars vals base-env)
-	(if (= (length vars) (mlength vals))
+	(if (= (length vars) (length vals))
 		(cons (make-frame vars vals) base-env)
-		(if (< (length vars) (mlength vals))
+		(if (< (length vars) (length vals))
 			(error "Too many arguments supplied" vars vals)
 			(error "Too few arguments supplied" vars vals)
 		)
@@ -1075,7 +1005,17 @@
 )
 
 (define (make-frame variables values)
-	(mcons variables values)
+	; Internal structure of frame: list of bindings (instead of a pair of lists)
+	(define (make-frame-internal vars vals)
+		(if (null? vars)
+			null
+			(mcons
+				(cons (car vars) (car vals))
+				(make-frame-internal (cdr vars) (cdr vals))
+			)
+		)
+	)
+	(make-frame-internal variables values)
 )
 
 (define (setup-environment)
@@ -1217,7 +1157,7 @@
 )
 
 (put 'variable 'eval lookup-variable-value)
-(put '= 'eval EVAL-assignment)
+(put 'set! 'eval EVAL-assignment)
 (put 'define 'eval EVAL-definition)
 (put 'if 'eval EVAL-if)
 (put 'cond 'eval EVAL-cond)
@@ -1242,7 +1182,7 @@
 				(procedure-body procedure)
 				(extend-environment
 					(procedure-parameters procedure)
-					(list->mlist arguments)
+					arguments
 					(procedure-environment procedure)
 				)
 			)
@@ -1276,7 +1216,6 @@
 (define (announce-output string)
 	(newline)
 	(display string)
-	; (newline)
 )
 
 (define (user-print object)
@@ -1355,3 +1294,259 @@
 ; Tests
 
 ; Test Results
+
+Welcome to DrRacket, version 7.4 [3m].
+Language: racket, with debugging; memory limit: 4096 MB.
+> (driver-loop)
+
+[Metacircular Evaluator Input] >>>
+(define x 1)
+
+[Metacircular Evaluator Output] >>> ok
+[Metacircular Evaluator Input] >>>
+x
+
+[Metacircular Evaluator Output] >>> 1
+[Metacircular Evaluator Input] >>>
+(do
+    (display 'x:)
+    (display x)
+    (newline)
+    (set! x (+ x 2))
+    (display '(x after setting:))
+    (display x)
+    (newline)
+    while (< x 10)
+)
+EVAL-do-while converted (do (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) while (< x 10)) to: 
+(begin (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) (while (< x 10) (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline)))
+x:1
+(x after setting:)3
+EVAL-while converted (while (< x 10) (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline)) to: 
+(begin (define while-block (lambda () (if (< x 10) (begin (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) (while-block)) 'done))) (while-block))
+x:3
+(x after setting:)5
+x:5
+(x after setting:)7
+x:7
+(x after setting:)9
+x:9
+(x after setting:)11
+
+[Metacircular Evaluator Output] >>> done
+[Metacircular Evaluator Input] >>>
+(define (inc val)
+    (+ val 1)
+)
+
+[Metacircular Evaluator Output] >>> ok
+[Metacircular Evaluator Input] >>>
+(inc 100)
+
+[Metacircular Evaluator Output] >>> 101
+[Metacircular Evaluator Input] >>>
+(for (i 1) (i 40) inc
+    (display i)
+    (newline)
+)
+EVAL-for converted (for (i 1) (i 40) inc (display i) (newline)) to: 
+(begin (define i 1) (define for-block (lambda () (if (<= i 40) (begin (display i) (newline) (set! i (inc i)) (for-block)) 'done))) (for-block))
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+
+[Metacircular Evaluator Output] >>> done
+[Metacircular Evaluator Input] >>>
+x
+
+[Metacircular Evaluator Output] >>> 11
+[Metacircular Evaluator Input] >>>
+(define x 1)
+
+[Metacircular Evaluator Output] >>> ok
+[Metacircular Evaluator Input] >>>
+x
+
+[Metacircular Evaluator Output] >>> 1
+[Metacircular Evaluator Input] >>>
+x
+
+[Metacircular Evaluator Output] >>> 1
+[Metacircular Evaluator Input] >>>
+(do
+    (display 'x:)
+    (display x)
+    (newline)
+    (set! x (+ x 2))
+    (display '(x after setting:))
+    (display x)
+    (newline)
+    until (> x 30)
+)
+EVAL-do-until converted (do (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) until (> x 30)) to: 
+(begin (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) (while (not (> x 30)) (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline)))
+x:1
+(x after setting:)3
+EVAL-while converted (while (not (> x 30)) (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline)) to: 
+(begin (define while-block (lambda () (if (not (> x 30)) (begin (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) (while-block)) 'done))) (while-block))
+x:3
+(x after setting:)5
+x:5
+(x after setting:)7
+x:7
+(x after setting:)9
+x:9
+(x after setting:)11
+x:11
+(x after setting:)13
+x:13
+(x after setting:)15
+x:15
+(x after setting:)17
+x:17
+(x after setting:)19
+x:19
+(x after setting:)21
+x:21
+(x after setting:)23
+x:23
+(x after setting:)25
+x:25
+(x after setting:)27
+x:27
+(x after setting:)29
+x:29
+(x after setting:)31
+
+[Metacircular Evaluator Output] >>> done
+[Metacircular Evaluator Input] >>>
+x
+
+[Metacircular Evaluator Output] >>> 31
+[Metacircular Evaluator Input] >>>
+(while (< x 50)
+    (display x)
+    (newline)
+    (set! x (+ x 3))
+)
+EVAL-while converted (while (< x 50) (display x) (newline) (set! x (+ x 3))) to: 
+(begin (define while-block (lambda () (if (< x 50) (begin (display x) (newline) (set! x (+ x 3)) (while-block)) 'done))) (while-block))
+31
+34
+37
+40
+43
+46
+49
+
+[Metacircular Evaluator Output] >>> done
+[Metacircular Evaluator Input] >>>
+(define x 31)
+
+[Metacircular Evaluator Output] >>> ok
+[Metacircular Evaluator Input] >>>
+x
+
+[Metacircular Evaluator Output] >>> 31
+[Metacircular Evaluator Input] >>>
+(while (< x 50)
+    (display x)
+    (newline)
+    (set! x (+ x 3))
+)
+EVAL-while converted (while (< x 50) (display x) (newline) (set! x (+ x 3))) to: 
+(begin (define while-block (lambda () (if (< x 50) (begin (display x) (newline) (set! x (+ x 3)) (while-block)) 'done))) (while-block))
+31
+34
+37
+40
+43
+46
+49
+
+[Metacircular Evaluator Output] >>> done
+[Metacircular Evaluator Input] >>>
+(define (inc val)
+    (+ val 1)
+)
+
+[Metacircular Evaluator Output] >>> ok
+[Metacircular Evaluator Input] >>>
+(inc 2001)
+
+[Metacircular Evaluator Output] >>> 2002
+[Metacircular Evaluator Input] >>>
+(define (square x) (* x x))
+
+[Metacircular Evaluator Output] >>> ok
+[Metacircular Evaluator Input] >>>
+(define (cube x) (* (square x) x))
+
+[Metacircular Evaluator Output] >>> ok
+[Metacircular Evaluator Input] >>>
+(let ((f (square 4))) (+ (cube f) (* 2 f)))
+In proc EVAL-let to evaluate: (let ((f (square 4))) (+ (cube f) (* 2 f)))
+Converted (let ((f (square 4))) (+ (cube f) (* 2 f))) to: 
+((lambda (f) (+ (cube f) (* 2 f))) (square 4))
+
+[Metacircular Evaluator Output] >>> 4128
+[Metacircular Evaluator Input] >>>
+(let ((a 10) (b 20) (c 30) (d 45)) (* a b c d))
+In proc EVAL-let to evaluate: (let ((a 10) (b 20) (c 30) (d 45)) (* a b c d))
+Converted (let ((a 10) (b 20) (c 30) (d 45)) (* a b c d)) to: 
+((lambda (a b c d) (* a b c d)) 10 20 30 45)
+
+[Metacircular Evaluator Output] >>> 270000
+[Metacircular Evaluator Input] >>>
+(let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (* x z))
+In proc EVAL-let* to evaluate: (let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (* x z))
+In proc EVAL-let to evaluate: (let ((x 3)) (let ((y (+ x 2))) (let ((z (+ x y 5))) (* x z))))
+Converted (let ((x 3)) (let ((y (+ x 2))) (let ((z (+ x y 5))) (* x z)))) to: 
+((lambda (x) (let ((y (+ x 2))) (let ((z (+ x y 5))) (* x z)))) 3)
+In proc EVAL-let to evaluate: (let ((y (+ x 2))) (let ((z (+ x y 5))) (* x z)))
+Converted (let ((y (+ x 2))) (let ((z (+ x y 5))) (* x z))) to: 
+((lambda (y) (let ((z (+ x y 5))) (* x z))) (+ x 2))
+In proc EVAL-let to evaluate: (let ((z (+ x y 5))) (* x z))
+Converted (let ((z (+ x y 5))) (* x z)) to: 
+((lambda (z) (* x z)) (+ x y 5))
+
+[Metacircular Evaluator Output] >>> 39
+[Metacircular Evaluator Input] >>>
+.
