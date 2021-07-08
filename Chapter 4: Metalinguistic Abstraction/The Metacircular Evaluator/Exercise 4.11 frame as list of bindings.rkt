@@ -9,70 +9,80 @@
 (require rnrs/mutable-pairs-6)
 (require compatibility/mlist)
 
-(define (EVAL exp env)
+(define (EVAL expression env)
 	(cond
-		((self-evaluating? exp) exp)
-		((quoted? exp) (text-of-quotation exp))
-		((variable? exp) (lookup-variable-value exp env))
-		((pair? exp)
-			(let ((handler (get (operator exp) 'eval)))
+		((self-evaluating? expression) expression)
+		((quoted? expression) (text-of-quotation expression))
+		((variable? expression) (lookup-variable-value expression env))
+		((pair? expression)
+			(let ((handler (get (operator expression) 'eval)))
 				(if (not (null? handler))
 					; handler found so pass the expression to it
-					(handler exp env)
+					(handler expression env)
 					; handler not found so it must be a procedure application
-					(APPLY
-						(EVAL (operator exp) env)
-						(list-of-values (operands exp) env)
+					(begin
+						; (display "Calling APPLY on: ")
+						; (display expression)
+						; (newline)
+						(APPLY
+							(EVAL (operator expression) env)
+							(list-of-values (operands expression) env)
+						)
 					)
 				)
 			)
 		)
 		(else
-			(error "Unknown expression type -- EVAL" exp)
+			(error "Unknown expression type -- EVAL" expression)
 		)
 	)
 )
 
 ; Self Evaluating Expressions
-(define (self-evaluating? exp)
+(define (self-evaluating? expression)
 	(cond
-		((number? exp) true)
-		((string? exp) true)
+		((number? expression) true)
+		((string? expression) true)
 		(else false)
 	)
 )
 
 ; Quoted Expressions
-(define (quoted? exp)
-	(tagged-list? exp 'quote)
+(define (quoted? expression)
+	(tagged-list? expression 'quote)
 )
 
-(define (text-of-quotation exp) (cadr exp))
+(define (text-of-quotation expression) (cadr expression))
 
 ; Assignment Expressions
-(define (assignment? exp)
-	(tagged-list? exp 'set!)
+(define (assignment? expression)
+	(tagged-list? expression 'set!)
 )
-(define (assignment-variable exp) (cadr exp))
-(define (assignment-value exp) (caddr exp))
+(define (assignment-variable expression) (cadr expression))
+(define (assignment-value expression) (caddr expression))
 
 (define (make-assignment variable-name value)
 	(list 'set! variable-name value)
 )
 
-(define (EVAL-assignment exp env)
+(define (EVAL-assignment expression env)
 	; (display "In proc EVAL-assignment to evaluate: ")
-	; (display exp)
+	; (display expression)
 	; (newline)
 	(set-variable-value!
-		(assignment-variable exp)
-		(EVAL (assignment-value exp) env)
+		(assignment-variable expression)
+		(EVAL (assignment-value expression) env)
 		env
 	)
 	'ok
 )
 
 (define (set-variable-value! var val env)
+	; (display "In proc set-variable-value! to set ")
+	; (display var)
+	; (display " to ")
+	; (display val)
+	; (newline)
 	(define (env-loop env)
 		(define (scan frame)
 			(cond
@@ -96,23 +106,23 @@
 )
 
 ; Definition Expressions
-(define (definition? exp)
-	(tagged-list? exp 'define)
+(define (definition? expression)
+	(tagged-list? expression 'define)
 )
 
-(define (definition-variable exp)
-	(if (symbol? (cadr exp))
-		(cadr exp)
-		(caadr exp)
+(define (definition-variable expression)
+	(if (symbol? (cadr expression))
+		(cadr expression)
+		(caadr expression)
 	)
 )
 
-(define (definition-value exp)
-	(if (symbol? (cadr exp))
-		(caddr exp)
+(define (definition-value expression)
+	(if (symbol? (cadr expression))
+		(caddr expression)
 		(make-lambda
-			(cdadr exp)		; formal parameters
-			(cddr exp)		; body
+			(cdadr expression)		; formal parameters
+			(cddr expression)		; body
 		)
 	)
 )
@@ -121,19 +131,24 @@
 	(list 'define variable-name value)
 )
 
-(define (EVAL-definition exp env)
+(define (EVAL-definition expression env)
 	; (display "In proc EVAL-definition to evaluate: ")
-	; (display exp)
+	; (display expression)
 	; (newline)
 	(define-variable!
-		(definition-variable exp)
-		(EVAL (definition-value exp) env)
+		(definition-variable expression)
+		(EVAL (definition-value expression) env)
 		env
 	)
 	'ok
 )
 
 (define (define-variable! var val env)
+	; (display "In proc define-variable! to define ")
+	; (display var)
+	; (display " as ")
+	; (display val)
+	; (newline)
 	(let ((frame (first-frame env)))
 		(define (scan frame)
 			(cond
@@ -151,10 +166,10 @@
 )
 
 ; Variable Expressions
-(define (variable? exp) (symbol? exp))
+(define (variable? expression) (symbol? expression))
 
 (define (lookup-variable-value var env)
-	; (display "In proc lookup-variable-value to evaluate: ")
+	; (display "In proc lookup-variable-value to lookup: ")
 	; (display var)
 	; (newline)
 	(define (env-loop env)
@@ -164,7 +179,12 @@
 					(env-loop (enclosing-environment env))
 				)
 				((eq? var (car (mcar frame)))
-					(cdr (mcar frame))
+					(begin
+						; (display "Found value ")
+						; (display (cdr (mcar frame)))
+						; (newline)
+						(cdr (mcar frame))
+					)
 				)
 				(else
 					(scan (mcdr frame))
@@ -182,12 +202,12 @@
 )
 
 ; 'if' Expressions
-(define (if? exp) (tagged-list? exp 'if))
-(define (if-predicate exp) (cadr exp))
-(define (if-consequent exp) (caddr exp))
-(define (if-alternative exp)
-	(if (not (null? (cdddr exp)))
-		(cadddr exp)
+(define (if? expression) (tagged-list? expression 'if))
+(define (if-predicate expression) (cadr expression))
+(define (if-consequent expression) (caddr expression))
+(define (if-alternative expression)
+	(if (not (null? (cdddr expression)))
+		(cadddr expression)
 		'false
 	)
 )
@@ -195,31 +215,31 @@
 	(list 'if predicate consequent alternative)
 )
 
-(define (EVAL-if exp env)
+(define (EVAL-if expression env)
 	; (display "In proc EVAL-if to evaluate: ")
-	; (display exp)
+	; (display expression)
 	; (newline)
-	(if (true? (EVAL (if-predicate exp) env))
-		(EVAL (if-consequent exp) env)
-		(EVAL (if-alternative exp) env)
+	(if (true? (EVAL (if-predicate expression) env))
+		(EVAL (if-consequent expression) env)
+		(EVAL (if-alternative expression) env)
 	)
 )
 
 ; lambda Expressions
-(define (lambda? exp) (tagged-list? exp 'lambda))
-(define (lambda-parameters exp) (cadr exp))
-(define (lambda-body exp) (cddr exp))
+(define (lambda? expression) (tagged-list? expression 'lambda))
+(define (lambda-parameters expression) (cadr expression))
+(define (lambda-body expression) (cddr expression))
 (define (make-lambda parameters body)
 	(cons 'lambda (cons parameters body))
 )
 
-(define (EVAL-lambda exp env)
+(define (EVAL-lambda expression env)
 	; (display "In proc EVAL-lambda to evaluate: ")
-	; (display exp)
+	; (display expression)
 	; (newline)
 	(make-procedure
-		(lambda-parameters exp)
-		(lambda-body exp)
+		(lambda-parameters expression)
+		(lambda-body expression)
 		env
 	)
 )
@@ -229,38 +249,38 @@
 )
 
 ; let Expressions
-(define (let? exp) (tagged-list? exp 'let))
-(define (named-let? exp)
-	(if (let? exp)
-		(if (not (null? (cdddr exp)))
+(define (let? expression) (tagged-list? expression 'let))
+(define (named-let? expression)
+	(if (let? expression)
+		(if (not (null? (cdddr expression)))
 			true
 			false
 		)
 		false
 	)
 )
-(define (let-var-bindings exp)
-	(if (named-let? exp)
-		(caddr exp)
-		(cadr exp)
+(define (let-var-bindings expression)
+	(if (named-let? expression)
+		(caddr expression)
+		(cadr expression)
 	)
 )
-(define (let-body exp)
-	(if (named-let? exp)
-		(cdddr exp)
-		(cddr exp)
+(define (let-body expression)
+	(if (named-let? expression)
+		(cdddr expression)
+		(cddr expression)
 	)
 )
-(define (named-let-proc-name exp)
-	(cadr exp)
+(define (named-let-proc-name expression)
+	(cadr expression)
 )
 
-(define (let->combination exp)
+(define (let->combination expression)
 	(let (
-			(parameters (map car (let-var-bindings exp)))
-			(arguments (map cadr (let-var-bindings exp)))
+			(parameters (map car (let-var-bindings expression)))
+			(arguments (map cadr (let-var-bindings expression)))
 		 )
-		(if (named-let? exp)
+		(if (named-let? expression)
 			; The idea is to create the following:
 			; (begin
 			;	(define <named-let-proc-name> (lambda () ...))
@@ -269,14 +289,14 @@
 			(make-begin
 				(list
 					(make-definition
-						(named-let-proc-name exp)
-						(make-lambda parameters (let-body exp))
+						(named-let-proc-name expression)
+						(make-lambda parameters (let-body expression))
 					)
-					(cons (named-let-proc-name exp) arguments)
+					(cons (named-let-proc-name expression) arguments)
 				)
 			)
 			; Ordinary let
-			(cons (make-lambda parameters (let-body exp)) arguments)
+			(cons (make-lambda parameters (let-body expression)) arguments)
 		)
 	)
 )
@@ -285,25 +305,25 @@
 	(list 'let var-bindings body)
 )
 
-(define (EVAL-let exp env)
+(define (EVAL-let expression env)
 	(display "In proc EVAL-let to evaluate: ")
-	(display exp)
+	(display expression)
 	(newline)
 	(display "Converted ")
-	(display exp)
+	(display expression)
 	(display " to: ")
 	(newline)
-	(display (let->combination exp))
+	(display (let->combination expression))
 	(newline)
-	(EVAL (let->combination exp) env)
+	(EVAL (let->combination expression) env)
 )
 
 ; let* Expressions
-(define (let*? exp) (tagged-list? exp 'let*))
-(define (let*-var-bindings exp) (cadr exp))
+(define (let*? expression) (tagged-list? expression 'let*))
+(define (let*-var-bindings expression) (cadr expression))
 (define (let*-first-var-binding var-bindings) (car var-bindings))
 (define (let*-rest-var-bindings var-bindings) (cdr var-bindings))
-(define (let*-body exp) (caddr exp))
+(define (let*-body expression) (caddr expression))
 
 ; (let* ((x 3)
 ;        (y (+ x 2))
@@ -320,17 +340,17 @@
 ; 	)
 ; )
 
-(define (let*->nested-lets exp)
-	(if (not (null? (let*-rest-var-bindings (let*-var-bindings exp))))
+(define (let*->nested-lets expression)
+	(if (not (null? (let*-rest-var-bindings (let*-var-bindings expression))))
 		(make-let
-			(list (let*-first-var-binding (let*-var-bindings exp)))
+			(list (let*-first-var-binding (let*-var-bindings expression)))
 			(let*->nested-lets
-				(make-let* (let*-rest-var-bindings (let*-var-bindings exp)) (let*-body exp))
+				(make-let* (let*-rest-var-bindings (let*-var-bindings expression)) (let*-body expression))
 			)
 		)
 		(make-let
-			(list (let*-first-var-binding (let*-var-bindings exp)))
-			(let*-body exp)
+			(list (let*-first-var-binding (let*-var-bindings expression)))
+			(let*-body expression)
 		)
 	)
 )
@@ -339,16 +359,16 @@
 	(list 'let* var-bindings body)
 )
 
-(define (EVAL-let* exp env)
+(define (EVAL-let* expression env)
 	(display "In proc EVAL-let* to evaluate: ")
-	(display exp)
+	(display expression)
 	(newline)
-	(EVAL (let*->nested-lets exp) env)
+	(EVAL (let*->nested-lets expression) env)
 )
 
 ; "begin" Expressions
-(define (begin? exp) (tagged-list? exp 'begin))
-(define (begin-actions exp) (cdr exp))
+(define (begin? expression) (tagged-list? expression 'begin))
+(define (begin-actions expression) (cdr expression))
 (define (last-exp? seq) (null? (cdr seq)))
 (define (first-exp seq) (car seq))
 (define (rest-exps seq) (cdr seq))
@@ -371,24 +391,24 @@
 )
 (define (make-begin seq) (cons 'begin seq))
 
-(define (EVAL-begin exp env)
+(define (EVAL-begin expression env)
 	; (display "In proc EVAL-begin to evaluate: ")
-	; (display exp)
+	; (display expression)
 	; (newline)
-	(EVAL-sequence (begin-actions exp) env)
+	(EVAL-sequence (begin-actions expression) env)
 )
 
 ; "cond" Expressions
-(define (cond? exp) (tagged-list? exp 'cond))
-(define (cond-clauses exp) (cdr exp))
+(define (cond? expression) (tagged-list? expression 'cond))
+(define (cond-clauses expression) (cdr expression))
 (define (cond-else-clause? clause)
 	(eq? (cond-predicate clause) 'else)
 )
 (define (cond-predicate clause) (car clause))
 (define (cond-actions clause) (cdr clause))
 
-(define (cond->if exp)
-	(expand-clauses (cond-clauses exp))
+(define (cond->if expression)
+	(expand-cond-clauses (cond-clauses expression))
 )
 
 ; The following statement:
@@ -408,7 +428,7 @@
 ;	)
 ; )
 
-(define (expand-clauses clauses)
+(define (expand-cond-clauses clauses)
 	(if (null? clauses)
 		'false ; no else clause
 		(let ((first (car clauses)) (rest (cdr clauses)))
@@ -422,12 +442,12 @@
 					(make-if
 						(list 'not (list 'eq? (cond-predicate first) 'false))
 						(list (recipient-proc first) (cond-predicate first))
-						(expand-clauses rest)
+						(expand-cond-clauses rest)
 					)
 					(make-if
 						(cond-predicate first)
 						(sequence->exp (cond-actions first))
-						(expand-clauses rest)
+						(expand-cond-clauses rest)
 					)
 				)
 			)
@@ -443,14 +463,16 @@
 	(caddr clause)
 )
 
-(define (EVAL-cond exp env)
+(define (EVAL-cond expression env)
 	(display "In proc EVAL-cond to evaluate: ")
-	(display exp)
+	(display expression)
 	(newline)
-	(EVAL (cond->if exp) env)
+	(EVAL (cond->if expression) env)
 )
 
 ; "and" Expressions
+(define (and-clauses expression) (cdr expression))
+
 ; Expression is of the form: (and exp1 exp2 .... expn)
 ; This expression can be re-written as:
 ; (if exp1
@@ -466,44 +488,51 @@
 ;	)
 ;	false
 ; )
-(define (and? exp) (tagged-list? exp 'and))
-(define (and-first-predicate exp)
-	(if (not (null? (cdr exp)))
-		(cadr exp)
-		'()
-	)
-)
-(define (and-rest-predicates exp)
-	(if (not (null? (cdr exp)))
-		(cddr exp)
-		'()
-	)
+(define (and->if expression)
+	(expand-and-clauses (and-clauses expression))
 )
 
-(define (make-and exp)
-	(cons 'and exp)
-)
+(define (expand-and-clauses clauses)
+	(define (last-and-clause? clauses)
+		(if (null? (cdr clauses))
+			true
+			false
+		)
+	)
 
-(define (EVAL-and exp env)
-	(display "In proc EVAL-and to evaluate: ")
-	(display exp)
-	(newline)
-	(if (null? exp)
-		; If there are no expressions, return true
-		true
-		(let ((fp (and-first-predicate exp)) (rp (and-rest-predicates exp)))
-			(if (not (null? fp))
-				(if (true? (EVAL (and-first-predicate exp) env))
-					(EVAL-and (make-and (and-rest-predicates exp)) env)
-					false
-				)
-				true
+	(cond
+		((null? clauses) null)
+		((last-and-clause? clauses)
+			(make-if
+				(car clauses) ;predicate
+				'true
+				'false
+			)
+		)
+		(else
+			(make-if 
+				(car clauses) ;predicate
+				(expand-and-clauses (cdr clauses)) ;consequent
+				'false ;alternative
 			)
 		)
 	)
 )
 
+(define (EVAL-and expression env)
+	(display "In proc EVAL-and to evaluate: ")
+	(display expression)
+	(newline)
+	(display "AND expression in IF form:")
+	(newline)
+	(display (and->if expression))
+	(newline)
+	(EVAL (and->if expression) env)
+)
+
 ; "or" Expressions
+(define (or-clauses expression) (cdr expression))
+
 ; Expression is of the form: (or exp1 exp2 .... expn)
 ; This expression can be re-written as:
 ; (if exp1
@@ -519,50 +548,55 @@
 ;		)
 ;	)
 ; )
-(define (or? exp) (tagged-list? exp 'or))
-(define (or-first-predicate exp)
-	(if (not (null? (cdr exp)))
-		(cadr exp)
-		'()
-	)
-)
-(define (or-rest-predicates exp)
-	(if (not (null? (cdr exp)))
-		(cddr exp)
-		'()
-	)
+(define (or->if expression)
+	(expand-or-clauses (or-clauses expression))
 )
 
-(define (make-or exp)
-	(cons 'or exp)
-)
+(define (expand-or-clauses clauses)
+	(define (last-or-clause? clauses)
+		(if (null? (cdr clauses))
+			true
+			false
+		)
+	)
 
-(define (EVAL-or exp env)
-	(display "In proc EVAL-or to evaluate: ")
-	(display exp)
-	(newline)
-	(if (null? exp)
-		; If there are no expressions, return false
-		false
-		(let ((fp (or-first-predicate exp)) (rp (or-rest-predicates exp)))
-			(if (not (null? fp))
-				(if (true? (EVAL (or-first-predicate exp) env))
-					true
-					(EVAL-or (make-or (or-rest-predicates exp)) env)
-				)
-				false
+	(cond
+		((null? clauses) null)
+		((last-or-clause? clauses)
+			(make-if
+				(car clauses) ;predicate
+				'true
+				'false
+			)
+		)
+		(else
+			(make-if 
+				(car clauses) ;predicate
+				'true ;consequent
+				(expand-or-clauses (cdr clauses)) ;alternative
 			)
 		)
 	)
 )
 
+(define (EVAL-or expression env)
+	(display "In proc EVAL-or to evaluate: ")
+	(display expression)
+	(newline)
+	(display "OR expression in IF form:")
+	(newline)
+	(display (or->if expression))
+	(newline)
+	(EVAL (or->if expression) env)
+)
+
 ; do blocks
-(define (EVAL-do exp env)
+(define (EVAL-do expression env)
 	(cond
-		((do-while? exp) (EVAL-do-while exp env))
-		((do-until? exp) (EVAL-do-until exp env))
+		((do-while? expression) (EVAL-do-while expression env))
+		((do-until? expression) (EVAL-do-until expression env))
 		(else
-			(error "Invalid do expression: " exp)
+			(error "Invalid do expression: " expression)
 		)
 	)
 )
@@ -575,37 +609,37 @@
 ;   while (condition)
 ; )
 ; 
-(define (do-while? exp)
+(define (do-while? expression)
 	(and
-		(tagged-list? exp 'do)
-		(eq? (last-but-one-term exp) 'while)
+		(tagged-list? expression 'do)
+		(eq? (last-but-one-term expression) 'while)
 	)
 )
 
-(define (do-while-statement-block exp)
-	(define (statement-block exp)
-		(if (not (eq? (car exp) 'while))
-			(cons (car exp) (statement-block (cdr exp)))
+(define (do-while-statement-block expression)
+	(define (statement-block expression)
+		(if (not (eq? (car expression) 'while))
+			(cons (car expression) (statement-block (cdr expression)))
 			null
 		)
 	)
-	(statement-block (cdr exp))
+	(statement-block (cdr expression))
 )
 
-(define (do-while-condition exp)
-	(define (condition exp)
-		(if (eq? (car exp) 'while)
-			(if (not (pair? (cdr exp)))
+(define (do-while-condition expression)
+	(define (condition expression)
+		(if (eq? (car expression) 'while)
+			(if (not (pair? (cdr expression)))
 				(error "Invalid do-while block: No terminating condition found")
-				(cadr exp)
+				(cadr expression)
 			)
-			(condition (cdr exp))
+			(condition (cdr expression))
 		)
 	)
-	(condition (cdr exp))
+	(condition (cdr expression))
 )
 
-(define (do-while->combination exp)
+(define (do-while->combination expression)
 	; Use the while block construct to convert it as follows:
 	; (begin
 	;   <statements>
@@ -615,28 +649,28 @@
 	; )
 	(make-begin
 		(append
-			(do-while-statement-block exp)
+			(do-while-statement-block expression)
 			(list
 				(make-while
-					(do-while-condition exp)
-					(do-while-statement-block exp)
+					(do-while-condition expression)
+					(do-while-statement-block expression)
 				)
 			)
 		)
 	)
 )
 
-(define (EVAL-do-while exp env)
+(define (EVAL-do-while expression env)
 	; (display "In proc EVAL-do-while to evaluate: ")
-	; (display exp)
+	; (display expression)
 	; (newline)
 	(display "EVAL-do-while converted ")
-	(display exp)
+	(display expression)
 	(display " to: ")
 	(newline)
-	(display (do-while->combination exp))
+	(display (do-while->combination expression))
 	(newline)
-	(EVAL (do-while->combination exp) env)
+	(EVAL (do-while->combination expression) env)
 )
 
 ; do-until blocks
@@ -647,37 +681,37 @@
 ;   until (condition)
 ; )
 ; 
-(define (do-until? exp)
+(define (do-until? expression)
 	(and
-		(tagged-list? exp 'do)
-		(eq? (last-but-one-term exp) 'until)
+		(tagged-list? expression 'do)
+		(eq? (last-but-one-term expression) 'until)
 	)
 )
 
-(define (do-until-statement-block exp)
-	(define (statement-block exp)
-		(if (not (eq? (car exp) 'until))
-			(cons (car exp) (statement-block (cdr exp)))
+(define (do-until-statement-block expression)
+	(define (statement-block expression)
+		(if (not (eq? (car expression) 'until))
+			(cons (car expression) (statement-block (cdr expression)))
 			null
 		)
 	)
-	(statement-block (cdr exp))
+	(statement-block (cdr expression))
 )
 
-(define (do-until-condition exp)
-	(define (condition exp)
-		(if (eq? (car exp) 'until)
-			(if (not (pair? (cdr exp)))
+(define (do-until-condition expression)
+	(define (condition expression)
+		(if (eq? (car expression) 'until)
+			(if (not (pair? (cdr expression)))
 				(error "Invalid do-until block: No terminating condition found")
-				(cadr exp)
+				(cadr expression)
 			)
-			(condition (cdr exp))
+			(condition (cdr expression))
 		)
 	)
-	(condition (cdr exp))
+	(condition (cdr expression))
 )
 
-(define (do-until->combination exp)
+(define (do-until->combination expression)
 	; Use the while block construct to convert it as follows:
 	; (begin
 	;   <statements>
@@ -687,28 +721,28 @@
 	; )
 	(make-begin
 		(append
-			(do-until-statement-block exp)
+			(do-until-statement-block expression)
 			(list
 				(make-while
-					(list 'not (do-until-condition exp))
-					(do-until-statement-block exp)
+					(list 'not (do-until-condition expression))
+					(do-until-statement-block expression)
 				)
 			)
 		)
 	)
 )
 
-(define (EVAL-do-until exp env)
+(define (EVAL-do-until expression env)
 	; (display "In proc EVAL-do-until to evaluate: ")
-	; (display exp)
+	; (display expression)
 	; (newline)
 	(display "EVAL-do-until converted ")
-	(display exp)
+	(display expression)
 	(display " to: ")
 	(newline)
-	(display (do-until->combination exp))
+	(display (do-until->combination expression))
 	(newline)
-	(EVAL (do-until->combination exp) env)
+	(EVAL (do-until->combination expression) env)
 )
 
 ; for blocks
@@ -719,29 +753,29 @@
 ; )
 ;
 
-(define (for? exp) (tagged-list? exp 'for))
+(define (for? expression) (tagged-list? expression 'for))
 
-(define (for-count-var exp)
-	(caadr exp)
+(define (for-count-var expression)
+	(caadr expression)
 )
 
-(define (for-count-start exp)
-	(cadr (cadr exp))
+(define (for-count-start expression)
+	(cadr (cadr expression))
 )
 
-(define (for-count-end exp)
-	(cadr (caddr exp))
+(define (for-count-end expression)
+	(cadr (caddr expression))
 )
 
-(define (for-inc-proc exp)
-	(cadddr exp)
+(define (for-inc-proc expression)
+	(cadddr expression)
 )
 
-(define (for-statement-block exp)
-	(cddddr exp)
+(define (for-statement-block expression)
+	(cddddr expression)
 )
 
-(define (for->combination exp)
+(define (for->combination expression)
 	; The derived expression for this would be:
 	;
 	; (begin
@@ -785,8 +819,8 @@
 	(make-begin
 		(list ; 3 items
 			(make-definition
-				(for-count-var exp)
-				(for-count-start exp)
+				(for-count-var expression)
+				(for-count-start expression)
 			)
 			(make-definition
 				'for-block
@@ -794,14 +828,14 @@
 					null
 					(list
 						(make-if
-							(list '<= (for-count-var exp) (for-count-end exp))
+							(list '<= (for-count-var expression) (for-count-end expression))
 							(make-begin
 								(append
-									(for-statement-block exp)
+									(for-statement-block expression)
 									(list
 										(make-assignment
-											(for-count-var exp)
-											(list (for-inc-proc exp) (for-count-var exp))
+											(for-count-var expression)
+											(list (for-inc-proc expression) (for-count-var expression))
 										)
 										'(for-block)
 									)
@@ -817,17 +851,17 @@
 	)
 )
 
-(define (EVAL-for exp env)
+(define (EVAL-for expression env)
 	; (display "In proc EVAL-for to evaluate: ")
-	; (display exp)
+	; (display expression)
 	; (newline)
 	(display "EVAL-for converted ")
-	(display exp)
+	(display expression)
 	(display " to: ")
 	(newline)
-	(display (for->combination exp))
+	(display (for->combination expression))
 	(newline)
-	(EVAL (for->combination exp) env)
+	(EVAL (for->combination expression) env)
 )
 
 ; while blocks
@@ -837,17 +871,17 @@
 ;    <one or more statements>
 ; )
 
-(define (while? exp) (tagged-list? exp 'while))
+(define (while? expression) (tagged-list? expression 'while))
 
-(define (while-statement-block exp)
-	(cddr exp)
+(define (while-statement-block expression)
+	(cddr expression)
 )
 
-(define (while-condition exp)
-	(cadr exp)
+(define (while-condition expression)
+	(cadr expression)
 )
 
-(define (while->combination exp)
+(define (while->combination expression)
 	; The derived expression for this would be:
 	;
 	; (define (while-block)
@@ -883,10 +917,10 @@
 					null
 					(list
 						(make-if
-							(while-condition exp)
+							(while-condition expression)
 							(make-begin
 								(append
-									(while-statement-block exp)
+									(while-statement-block expression)
 									(list '(while-block))
 								)
 							)
@@ -904,23 +938,23 @@
 	(cons 'while (cons condition statements))
 )
 
-(define (EVAL-while exp env)
+(define (EVAL-while expression env)
 	; (display "In proc EVAL-while to evaluate: ")
-	; (display exp)
+	; (display expression)
 	; (newline)
 	(display "EVAL-while converted ")
-	(display exp)
+	(display expression)
 	(display " to: ")
 	(newline)
-	(display (while->combination exp))
+	(display (while->combination expression))
 	(newline)
-	(EVAL (while->combination exp) env)
+	(EVAL (while->combination expression) env)
 )
 
 ; Compound Procedures
-(define (application? exp) (pair? exp))
-(define (operator exp) (car exp))
-(define (operands exp) (cdr exp))
+(define (application? expression) (pair? expression))
+(define (operator expression) (car expression))
+(define (operands expression) (cdr expression))
 (define (no-operands? ops) (null? ops))
 (define (first-operand ops) (car ops))
 (define (rest-operands ops) (cdr ops))
@@ -1038,9 +1072,9 @@
 	(evaluate-l-to-r-list-of-values exps env)
 )
 
-(define (tagged-list? exp tag)
-	(if (pair? exp)
-		(eq? (car exp) tag)
+(define (tagged-list? expression tag)
+	(if (pair? expression)
+		(eq? (car expression) tag)
 		false
 	)
 )
@@ -1069,16 +1103,16 @@
 	)
 )
 
-(define (last-but-one-term exp)
-	(if (pair? exp)
-		(if (pair? (cdr exp))
-			(if (null? (cddr exp))
-				(car exp)
-				(last-but-one-term (cdr exp))
+(define (last-but-one-term expression)
+	(if (pair? expression)
+		(if (pair? (cdr expression))
+			(if (null? (cddr expression))
+				(car expression)
+				(last-but-one-term (cdr expression))
 			)
-			(error "Invalid expression: " exp)
+			(error "Invalid expression: " expression)
 		)
-		(error "Invalid expression: " exp)
+		(error "Invalid expression: " expression)
 	)
 )
 
@@ -1295,18 +1329,18 @@
 
 ; Test Results
 
-Welcome to DrRacket, version 7.4 [3m].
-Language: racket, with debugging; memory limit: 4096 MB.
+Welcome to DrRacket, version 8.1 [cs].
+Language: racket, with debugging; memory limit: 128 MB.
 > (driver-loop)
 
 [Metacircular Evaluator Input] >>>
-(define x 1)
+(define x -10)
 
 [Metacircular Evaluator Output] >>> ok
 [Metacircular Evaluator Input] >>>
 x
 
-[Metacircular Evaluator Output] >>> 1
+[Metacircular Evaluator Output] >>> -10
 [Metacircular Evaluator Input] >>>
 (do
     (display 'x:)
@@ -1320,24 +1354,36 @@ x
 )
 EVAL-do-while converted (do (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) while (< x 10)) to: 
 (begin (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) (while (< x 10) (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline)))
-x:1
-(x after setting:)3
+x:-10
+(x after setting:)-8
 EVAL-while converted (while (< x 10) (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline)) to: 
 (begin (define while-block (lambda () (if (< x 10) (begin (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) (while-block)) 'done))) (while-block))
-x:3
-(x after setting:)5
-x:5
-(x after setting:)7
-x:7
-(x after setting:)9
-x:9
-(x after setting:)11
+In proc EVAL-lambda to evaluate: (lambda () (if (< x 10) (begin (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) (while-block)) 'done))
+x:-8
+(x after setting:)-6
+x:-6
+(x after setting:)-4
+x:-4
+(x after setting:)-2
+x:-2
+(x after setting:)0
+x:0
+(x after setting:)2
+x:2
+(x after setting:)4
+x:4
+(x after setting:)6
+x:6
+(x after setting:)8
+x:8
+(x after setting:)10
 
 [Metacircular Evaluator Output] >>> done
 [Metacircular Evaluator Input] >>>
 (define (inc val)
     (+ val 1)
 )
+In proc EVAL-lambda to evaluate: (lambda (val) (+ val 1))
 
 [Metacircular Evaluator Output] >>> ok
 [Metacircular Evaluator Input] >>>
@@ -1351,6 +1397,7 @@ x:9
 )
 EVAL-for converted (for (i 1) (i 40) inc (display i) (newline)) to: 
 (begin (define i 1) (define for-block (lambda () (if (<= i 40) (begin (display i) (newline) (set! i (inc i)) (for-block)) 'done))) (for-block))
+In proc EVAL-lambda to evaluate: (lambda () (if (<= i 40) (begin (display i) (newline) (set! i (inc i)) (for-block)) 'done))
 1
 2
 3
@@ -1396,15 +1443,11 @@ EVAL-for converted (for (i 1) (i 40) inc (display i) (newline)) to:
 [Metacircular Evaluator Input] >>>
 x
 
-[Metacircular Evaluator Output] >>> 11
+[Metacircular Evaluator Output] >>> 10
 [Metacircular Evaluator Input] >>>
 (define x 1)
 
 [Metacircular Evaluator Output] >>> ok
-[Metacircular Evaluator Input] >>>
-x
-
-[Metacircular Evaluator Output] >>> 1
 [Metacircular Evaluator Input] >>>
 x
 
@@ -1426,6 +1469,7 @@ x:1
 (x after setting:)3
 EVAL-while converted (while (not (> x 30)) (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline)) to: 
 (begin (define while-block (lambda () (if (not (> x 30)) (begin (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) (while-block)) 'done))) (while-block))
+In proc EVAL-lambda to evaluate: (lambda () (if (not (> x 30)) (begin (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) (while-block)) 'done))
 x:3
 (x after setting:)5
 x:5
@@ -1468,6 +1512,7 @@ x
 )
 EVAL-while converted (while (< x 50) (display x) (newline) (set! x (+ x 3))) to: 
 (begin (define while-block (lambda () (if (< x 50) (begin (display x) (newline) (set! x (+ x 3)) (while-block)) 'done))) (while-block))
+In proc EVAL-lambda to evaluate: (lambda () (if (< x 50) (begin (display x) (newline) (set! x (+ x 3)) (while-block)) 'done))
 31
 34
 37
@@ -1493,6 +1538,7 @@ x
 )
 EVAL-while converted (while (< x 50) (display x) (newline) (set! x (+ x 3))) to: 
 (begin (define while-block (lambda () (if (< x 50) (begin (display x) (newline) (set! x (+ x 3)) (while-block)) 'done))) (while-block))
+In proc EVAL-lambda to evaluate: (lambda () (if (< x 50) (begin (display x) (newline) (set! x (+ x 3)) (while-block)) 'done))
 31
 34
 37
@@ -1506,6 +1552,7 @@ EVAL-while converted (while (< x 50) (display x) (newline) (set! x (+ x 3))) to:
 (define (inc val)
     (+ val 1)
 )
+In proc EVAL-lambda to evaluate: (lambda (val) (+ val 1))
 
 [Metacircular Evaluator Output] >>> ok
 [Metacircular Evaluator Input] >>>
@@ -1514,10 +1561,12 @@ EVAL-while converted (while (< x 50) (display x) (newline) (set! x (+ x 3))) to:
 [Metacircular Evaluator Output] >>> 2002
 [Metacircular Evaluator Input] >>>
 (define (square x) (* x x))
+In proc EVAL-lambda to evaluate: (lambda (x) (* x x))
 
 [Metacircular Evaluator Output] >>> ok
 [Metacircular Evaluator Input] >>>
 (define (cube x) (* (square x) x))
+In proc EVAL-lambda to evaluate: (lambda (x) (* (square x) x))
 
 [Metacircular Evaluator Output] >>> ok
 [Metacircular Evaluator Input] >>>
@@ -1525,6 +1574,7 @@ EVAL-while converted (while (< x 50) (display x) (newline) (set! x (+ x 3))) to:
 In proc EVAL-let to evaluate: (let ((f (square 4))) (+ (cube f) (* 2 f)))
 Converted (let ((f (square 4))) (+ (cube f) (* 2 f))) to: 
 ((lambda (f) (+ (cube f) (* 2 f))) (square 4))
+In proc EVAL-lambda to evaluate: (lambda (f) (+ (cube f) (* 2 f)))
 
 [Metacircular Evaluator Output] >>> 4128
 [Metacircular Evaluator Input] >>>
@@ -1532,6 +1582,7 @@ Converted (let ((f (square 4))) (+ (cube f) (* 2 f))) to:
 In proc EVAL-let to evaluate: (let ((a 10) (b 20) (c 30) (d 45)) (* a b c d))
 Converted (let ((a 10) (b 20) (c 30) (d 45)) (* a b c d)) to: 
 ((lambda (a b c d) (* a b c d)) 10 20 30 45)
+In proc EVAL-lambda to evaluate: (lambda (a b c d) (* a b c d))
 
 [Metacircular Evaluator Output] >>> 270000
 [Metacircular Evaluator Input] >>>
@@ -1540,12 +1591,15 @@ In proc EVAL-let* to evaluate: (let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (* x z))
 In proc EVAL-let to evaluate: (let ((x 3)) (let ((y (+ x 2))) (let ((z (+ x y 5))) (* x z))))
 Converted (let ((x 3)) (let ((y (+ x 2))) (let ((z (+ x y 5))) (* x z)))) to: 
 ((lambda (x) (let ((y (+ x 2))) (let ((z (+ x y 5))) (* x z)))) 3)
+In proc EVAL-lambda to evaluate: (lambda (x) (let ((y (+ x 2))) (let ((z (+ x y 5))) (* x z))))
 In proc EVAL-let to evaluate: (let ((y (+ x 2))) (let ((z (+ x y 5))) (* x z)))
 Converted (let ((y (+ x 2))) (let ((z (+ x y 5))) (* x z))) to: 
 ((lambda (y) (let ((z (+ x y 5))) (* x z))) (+ x 2))
+In proc EVAL-lambda to evaluate: (lambda (y) (let ((z (+ x y 5))) (* x z)))
 In proc EVAL-let to evaluate: (let ((z (+ x y 5))) (* x z))
 Converted (let ((z (+ x y 5))) (* x z)) to: 
 ((lambda (z) (* x z)) (+ x y 5))
+In proc EVAL-lambda to evaluate: (lambda (z) (* x z))
 
 [Metacircular Evaluator Output] >>> 39
 [Metacircular Evaluator Input] >>>
