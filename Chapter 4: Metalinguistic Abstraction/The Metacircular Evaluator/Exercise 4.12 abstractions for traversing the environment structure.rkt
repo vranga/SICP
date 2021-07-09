@@ -78,26 +78,37 @@
 	'ok
 )
 
-(define (find-frame-position-containing-variable var env)
+(define (find-variable-position-in-env var env)
 	; Traverse the supplied environment to find the frame that contains a binding for 'var'
 	(define (env-loop env)
-		(define (scan frame)
-			(cond
-				((null? frame)
-					(env-loop (enclosing-environment env))
-				)
-				((eq? var (car (mcar frame))) frame)
-				(else (scan (mcdr frame)))
-			)
-		)
 		(if (eq? env the-empty-environment)
 			null
 			(let ((frame (first-frame env)))
-				(scan frame)
+				(let ((variable-position (find-variable-position-in-frame var frame)))
+					(if (eq? variable-position null)
+						(env-loop (enclosing-environment env))
+						variable-position
+					)
+				)
 			)
 		)
 	)
+
 	(env-loop env)
+)
+
+(define (find-variable-position-in-frame var frame)
+	; Look for the variable only within the supplied frame (i.e. don't look beyond this
+	; frame)
+	(define (scan frame)
+		(cond
+			((null? frame) null)
+			((eq? var (car (mcar frame))) frame)
+			(else (scan (mcdr frame)))
+		)
+	)
+
+	(scan frame)
 )
 
 (define (set-variable-value! var val env)
@@ -107,7 +118,7 @@
 	; (display val)
 	; (newline)
 
-	(let ((f (find-frame-position-containing-variable var env)))
+	(let ((f (find-variable-position-in-env var env)))
 		(if (null? f)
 			(error "Unbound variable -- SET!" var)
 			(set-mcar! f (cons var val))
@@ -159,19 +170,12 @@
 	; (display " as ")
 	; (display val)
 	; (newline)
-	(let ((frame (first-frame env)))
-		(define (scan frame)
-			(cond
-				((null? frame)
-					(add-binding-to-env! var val env)
-				)
-				((eq? var (car (mcar frame)))
-					(set-mcar! frame (cons var val))
-				)
-				(else (scan (mcdr frame)))
-			)
+
+	(let ((ref (find-variable-position-in-frame var (first-frame env))))
+		(if (null? ref)
+			(add-binding-to-env! var val env)
+			(set-mcar! ref (cons var val))
 		)
-		(scan frame)
 	)
 )
 
@@ -182,33 +186,12 @@
 	; (display "In proc lookup-variable-value to lookup: ")
 	; (display var)
 	; (newline)
-	(define (env-loop env)
-		(define (scan frame)
-			(cond
-				((null? frame)
-					(env-loop (enclosing-environment env))
-				)
-				((eq? var (car (mcar frame)))
-					(begin
-						; (display "Found value ")
-						; (display (cdr (mcar frame)))
-						; (newline)
-						(cdr (mcar frame))
-					)
-				)
-				(else
-					(scan (mcdr frame))
-				)
-			)
-		)
-		(if (eq? env the-empty-environment)
+	(let ((ref (find-variable-position-in-env var env)))
+		(if (null? ref)
 			(error "Unbound variable" var)
-			(let ((frame (first-frame env)))
-				(scan frame)
-			)
+			(cdr (mcar ref))
 		)
 	)
-	(env-loop env)
 )
 
 ; 'if' Expressions
@@ -1005,6 +988,7 @@
 		(list 'eq? eq?)
 		(list 'null? null?)
 		(list 'display display)
+		(list 'displayln displayln)
 		(list 'newline newline)
 		(list 'assoc assoc)
 		(list 'void void)
@@ -1243,12 +1227,15 @@
 (define (driver-loop)
 	(prompt-for-input input-prompt)
 	(let ((input (read)))
-		(let ((output (EVAL input the-global-environment)))
-			(announce-output output-prompt)
-			(user-print output)
+		(if (eq? input 'quit)
+			'Done
+			(let ((output (EVAL input the-global-environment)))
+				(announce-output output-prompt)
+				(user-print output)
+				(driver-loop)
+			)
 		)
 	)
-	(driver-loop)
 )
 
 (define (prompt-for-input string)
@@ -1338,3 +1325,60 @@
 ; Tests
 
 ; Test Results
+
+Welcome to DrRacket, version 8.1 [cs].
+Language: racket, with debugging; memory limit: 128 MB.
+> (driver-loop)
+
+[Metacircular Evaluator Input] >>>
+(define x 11)
+
+[Metacircular Evaluator Output] >>> ok
+[Metacircular Evaluator Input] >>>
+x
+
+[Metacircular Evaluator Output] >>> 11
+[Metacircular Evaluator Input] >>>
+(define (P1 x) (display "Passed in value: ") (displayln x) (set! x 31) (display "Modified value: ") (displayln x))
+
+[Metacircular Evaluator Output] >>> ok
+[Metacircular Evaluator Input] >>>
+(P1 x)
+Passed in value: 11
+Modified value: 31
+
+[Metacircular Evaluator Output] >>> #<void>
+[Metacircular Evaluator Input] >>>
+x
+
+[Metacircular Evaluator Output] >>> 11
+[Metacircular Evaluator Input] >>>
+(set! x (+ x 3))
+
+[Metacircular Evaluator Output] >>> ok
+[Metacircular Evaluator Input] >>>
+x
+
+[Metacircular Evaluator Output] >>> 14
+[Metacircular Evaluator Input] >>>
+(P1 22)
+Passed in value: 22
+Modified value: 31
+
+[Metacircular Evaluator Output] >>> #<void>
+[Metacircular Evaluator Input] >>>
+x
+
+[Metacircular Evaluator Output] >>> 14
+[Metacircular Evaluator Input] >>>
+(P1 x)
+Passed in value: 14
+Modified value: 31
+
+[Metacircular Evaluator Output] >>> #<void>
+[Metacircular Evaluator Input] >>>
+x
+
+[Metacircular Evaluator Output] >>> 14
+[Metacircular Evaluator Input] >>>
+.
