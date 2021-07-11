@@ -150,6 +150,53 @@
 	)
 )
 
+; Un-definition Expressions (to remove bindings from the environment)
+(define (un-definition? expression)
+	(tagged-list? expression 'make-unbound!)
+)
+
+(define (un-definition-variable expression)
+	(cadr expression)
+)
+
+(define (EVAL-un-definition expression env)
+	; (display "In proc EVAL-un-definition to evaluate: ")
+	; (display expression)
+	; (newline)
+	(make-variable-unbound!
+		(un-definition-variable expression)
+		env
+	)
+	'ok
+)
+
+(define (make-variable-unbound! var env)
+	; Look for the variable only within the supplied frame (i.e. don't look beyond this
+	; frame) and if found remove it and its value from this frame
+
+	; (display "In proc make-variable-unbound! to remove ")
+	; (display var)
+	; (newline)
+	(define (scan frame)
+		(cond
+			((null? frame) (error "Variable does not exist in supplied frame: " var))
+			; If the first binding in the frame contains this variable, then null it out
+			((eq? var (name-in-binding (first-binding frame)))
+				(set-mcar! (make-binding null null))
+			)
+			; If the second or later binding in the frame contains this variable,
+			; then remove the binding from the frame by making the previous item point 
+			; to the item ahead of the binding being removed
+			((eq? var (name-in-binding (first-binding (rest-bindings frame))))
+				(set-mcdr! frame (rest-bindings (rest-bindings frame)))
+			)
+			(else (scan (rest-bindings frame)))
+		)
+	)
+
+	(scan (first-frame env))
+)
+
 ; Variable Expressions
 (define (variable? expression) (symbol? expression))
 
@@ -1020,7 +1067,14 @@
 			)
 		)
 	)
-	(make-frame-internal variables values)
+	(if (null? variables)
+		; Create an empty frame
+		(mcons
+			(make-binding null null)
+			null
+		)
+		(make-frame-internal variables values)
+	)
 )
 
 (define (find-variable-position-in-env var env)
@@ -1227,6 +1281,7 @@
 (put 'variable 'eval lookup-variable-value)
 (put 'set! 'eval EVAL-assignment)
 (put 'define 'eval EVAL-definition)
+(put 'make-unbound! 'eval EVAL-un-definition)
 (put 'if 'eval EVAL-if)
 (put 'cond 'eval EVAL-cond)
 (put 'and 'eval EVAL-and)
@@ -1552,5 +1607,83 @@ Exiting proc (F1 x)
 x
 
 [Metacircular Evaluator Output] >>> 3
+[Metacircular Evaluator Input] >>>
+(define x 24)
+
+[Metacircular Evaluator Output] >>> ok
+[Metacircular Evaluator Input] >>>
+(define y 84)
+
+[Metacircular Evaluator Output] >>> ok
+[Metacircular Evaluator Input] >>>
+x
+
+[Metacircular Evaluator Output] >>> 24
+[Metacircular Evaluator Input] >>>
+y
+
+[Metacircular Evaluator Output] >>> 84
+[Metacircular Evaluator Input] >>>
+(make-unbound! x)
+
+[Metacircular Evaluator Output] >>> ok
+[Metacircular Evaluator Input] >>>
+x
+
+[Metacircular Evaluator Output] >>> Unbound variable 'x
+[Metacircular Evaluator Input] >>>
+y
+
+[Metacircular Evaluator Output] >>> 84
+[Metacircular Evaluator Input] >>>
+(make-unbound! y)
+
+[Metacircular Evaluator Output] >>> ok
+[Metacircular Evaluator Input] >>>
+y
+
+[Metacircular Evaluator Output] >>> Unbound variable 'y
+[Metacircular Evaluator Input] >>>
+(define x 2000)
+
+[Metacircular Evaluator Output] >>> ok
+[Metacircular Evaluator Input] >>>
+x
+
+[Metacircular Evaluator Output] >>> 2000
+[Metacircular Evaluator Input] >>>
+(define (F1)
+	(define x 100)
+	(display "Value of x inside F1: ")
+	(displayln x)
+	(make-unbound! x)
+	(display "Displaying x after unbounding it: ")
+	(displayln x)
+)
+
+[Metacircular Evaluator Output] >>> ok
+[Metacircular Evaluator Input] >>>
+(F1)
+Extended the environment:
+Name: ()
+Value: ()
+[End of Frame]
+[Last Frame (Not displaying this frame containing primitive procedures)]
+Value of x inside F1: 100
+Displaying x after unbounding it: 2000
+
+[Metacircular Evaluator Output] >>> #<void>
+[Metacircular Evaluator Input] >>>
+x
+
+[Metacircular Evaluator Output] >>> 2000
+[Metacircular Evaluator Input] >>>
+(make-unbound! x)
+
+[Metacircular Evaluator Output] >>> ok
+[Metacircular Evaluator Input] >>>
+x
+
+[Metacircular Evaluator Output] >>> Unbound variable 'x
 [Metacircular Evaluator Input] >>>
 .
