@@ -179,14 +179,20 @@
 	; (newline)
 	(define (scan frame)
 		(cond
-			((null? frame) (error "Variable does not exist in supplied frame: " var))
-			; If the first binding in the frame contains this variable, then null it out
+			((null? frame) (error "Variable does not exist in supplied frame:" var))
 			((eq? var (name-in-binding (first-binding frame)))
+				; The first binding contains this variable. We can either null it out
+				; or physically remove it. I choose to null it out.
 				(set-mcar! (make-binding null null))
 			)
-			; If the second or later binding in the frame contains this variable,
-			; then remove the binding from the frame by making the previous item point 
-			; to the item ahead of the binding being removed
+			((null? (rest-bindings frame))
+				; First binding does not contain this variable and we have reached the
+				; last binding. So the variable does not exist in this frame
+				(error "Variable does not exist in supplied frame:" var)
+			)
+			; If the second binding contains this variable, then remove the binding from
+			; the frame by making the previous item point to the item ahead of the binding
+			; being removed
 			((eq? var (name-in-binding (first-binding (rest-bindings frame))))
 				(set-mcdr! frame (rest-bindings (rest-bindings frame)))
 			)
@@ -1440,6 +1446,90 @@ x
 
 [Metacircular Evaluator Output] >>> 3
 [Metacircular Evaluator Input] >>>
+(make-unbound! x)
+
+[Metacircular Evaluator Output] >>> ok
+[Metacircular Evaluator Input] >>>
+x
+
+[Metacircular Evaluator Output] >>> Unbound variable 'x
+[Metacircular Evaluator Input] >>>
+(define x 4)
+
+[Metacircular Evaluator Output] >>> ok
+[Metacircular Evaluator Input] >>>
+(define y 5)
+
+[Metacircular Evaluator Output] >>> ok
+[Metacircular Evaluator Input] >>>
+x
+
+[Metacircular Evaluator Output] >>> 4
+[Metacircular Evaluator Input] >>>
+y
+
+[Metacircular Evaluator Output] >>> 5
+[Metacircular Evaluator Input] >>>
+(make-unbound! y)
+
+[Metacircular Evaluator Output] >>> ok
+[Metacircular Evaluator Input] >>>
+y
+
+[Metacircular Evaluator Output] >>> Unbound variable 'y
+[Metacircular Evaluator Input] >>>
+x
+
+[Metacircular Evaluator Output] >>> 4
+[Metacircular Evaluator Input] >>>
+(make-unbound! x)
+
+[Metacircular Evaluator Output] >>> ok
+[Metacircular Evaluator Input] >>>
+x
+
+[Metacircular Evaluator Output] >>> Unbound variable 'x
+[Metacircular Evaluator Input] >>>
+(define x 7)
+
+[Metacircular Evaluator Output] >>> ok
+[Metacircular Evaluator Input] >>>
+(define y 8)
+
+[Metacircular Evaluator Output] >>> ok
+[Metacircular Evaluator Input] >>>
+(define z 9)
+
+[Metacircular Evaluator Output] >>> ok
+[Metacircular Evaluator Input] >>>
+x
+
+[Metacircular Evaluator Output] >>> 7
+[Metacircular Evaluator Input] >>>
+y
+
+[Metacircular Evaluator Output] >>> 8
+[Metacircular Evaluator Input] >>>
+z
+
+[Metacircular Evaluator Output] >>> 9
+[Metacircular Evaluator Input] >>>
+(make-unbound! y)
+
+[Metacircular Evaluator Output] >>> ok
+[Metacircular Evaluator Input] >>>
+y
+
+[Metacircular Evaluator Output] >>> Unbound variable 'y
+[Metacircular Evaluator Input] >>>
+x
+
+[Metacircular Evaluator Output] >>> 7
+[Metacircular Evaluator Input] >>>
+z
+
+[Metacircular Evaluator Output] >>> 9
+[Metacircular Evaluator Input] >>>
 (define (F1 x)
 
 	(define (F2 x)
@@ -1505,108 +1595,108 @@ x
 (F1 x)
 Extended the environment:
 Name: x
-Value: 3
+Value: 7
 [End of Frame]
 [Last Frame (Not displaying this frame containing primitive procedures)]
 Entered proc (F1 x)
-Passed in value of x: 3
-Value of x after tripling: 9
+Passed in value of x: 7
+Value of x after tripling: 21
 Extended the environment:
 Name: x
-Value: 9
+Value: 21
 [End of Frame]
 Name: x
-Value: 9
+Value: 21
 Name: F2
-Value: #0=(procedure #1=(x) #2=((define (F3 x) (define (F4 x) (define (inc x) (displayln Entered proc (inc x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (+ x 1)) (displayln Entered proc (F4 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (set! x (inc x)) (display Value of x after incrementing: ) (displayln x) (displayln Exiting proc (F4 x))) (displayln Entered proc (F3 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F4 x) (display Value of x after calling (F4 x): ) (displayln x) (displayln Exiting proc (F3 x))) (displayln Entered proc (F2 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F3 x) (display Value of x after calling (F3 x): ) (displayln x) (displayln Exiting proc (F2 x))) ({(x . 9) (F2 . #0#)} . #3=({(car primitive #<procedure:car>) (cdr primitive #<procedure:cdr>) (cadr primitive #<procedure:cadr>) (cons primitive #<procedure:cons>) (not primitive #<procedure:not>) (eq? primitive #<procedure:eq?>) (null? primitive #<procedure:null?>) (display primitive #<procedure:display>) (displayln primitive #<procedure:displayln>) (newline primitive #<procedure:newline>) (assoc primitive #<procedure:assoc>) (void primitive #<procedure:void>) (> primitive #<procedure:>>) (< primitive #<procedure:<>) (>= primitive #<procedure:>=>) (<= primitive #<procedure:<=>) (= primitive #<procedure:=>) (+ primitive #<procedure:+>) (- primitive #<procedure:->) (* primitive #<procedure:*>) (/ primitive #<procedure:/>) (true . #t) (false . #f) (x . 3) (F1 procedure (x) ((define (F2 . #1#) . #2#) (displayln Entered proc (F1 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F2 x) (display Value of x after calling (F2 x): ) (displayln x) (displayln Exiting proc (F1 x))) #3#)})))
+Value: #0=(procedure #1=(x) #2=((define (F3 x) (define (F4 x) (define (inc x) (displayln Entered proc (inc x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (+ x 1)) (displayln Entered proc (F4 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (set! x (inc x)) (display Value of x after incrementing: ) (displayln x) (displayln Exiting proc (F4 x))) (displayln Entered proc (F3 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F4 x) (display Value of x after calling (F4 x): ) (displayln x) (displayln Exiting proc (F3 x))) (displayln Entered proc (F2 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F3 x) (display Value of x after calling (F3 x): ) (displayln x) (displayln Exiting proc (F2 x))) ({(x . 21) (F2 . #0#)} . #3=({(car primitive #<procedure:car>) (cdr primitive #<procedure:cdr>) (cadr primitive #<procedure:cadr>) (cons primitive #<procedure:cons>) (not primitive #<procedure:not>) (eq? primitive #<procedure:eq?>) (null? primitive #<procedure:null?>) (display primitive #<procedure:display>) (displayln primitive #<procedure:displayln>) (newline primitive #<procedure:newline>) (assoc primitive #<procedure:assoc>) (void primitive #<procedure:void>) (> primitive #<procedure:>>) (< primitive #<procedure:<>) (>= primitive #<procedure:>=>) (<= primitive #<procedure:<=>) (= primitive #<procedure:=>) (+ primitive #<procedure:+>) (- primitive #<procedure:->) (* primitive #<procedure:*>) (/ primitive #<procedure:/>) (true . #t) (false . #f) (x . 7) (z . 9) (F1 procedure (x) ((define (F2 . #1#) . #2#) (displayln Entered proc (F1 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F2 x) (display Value of x after calling (F2 x): ) (displayln x) (displayln Exiting proc (F1 x))) #3#)})))
 [End of Frame]
 [Last Frame (Not displaying this frame containing primitive procedures)]
 Entered proc (F2 x)
-Passed in value of x: 9
-Value of x after tripling: 27
+Passed in value of x: 21
+Value of x after tripling: 63
 Extended the environment:
 Name: x
-Value: 27
+Value: 63
 [End of Frame]
 Name: x
-Value: 27
+Value: 63
 Name: F3
-Value: #0=(procedure #1=(x) #2=((define (F4 x) (define (inc x) (displayln Entered proc (inc x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (+ x 1)) (displayln Entered proc (F4 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (set! x (inc x)) (display Value of x after incrementing: ) (displayln x) (displayln Exiting proc (F4 x))) (displayln Entered proc (F3 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F4 x) (display Value of x after calling (F4 x): ) (displayln x) (displayln Exiting proc (F3 x))) ({(x . 27) (F3 . #0#)} . #3=({(x . 9) (F2 procedure #4=(x) #5=((define (F3 . #1#) . #2#) (displayln Entered proc (F2 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F3 x) (display Value of x after calling (F3 x): ) (displayln x) (displayln Exiting proc (F2 x))) #3#)} . #6=({(car primitive #<procedure:car>) (cdr primitive #<procedure:cdr>) (cadr primitive #<procedure:cadr>) (cons primitive #<procedure:cons>) (not primitive #<procedure:not>) (eq? primitive #<procedure:eq?>) (null? primitive #<procedure:null?>) (display primitive #<procedure:display>) (displayln primitive #<procedure:displayln>) (newline primitive #<procedure:newline>) (assoc primitive #<procedure:assoc>) (void primitive #<procedure:void>) (> primitive #<procedure:>>) (< primitive #<procedure:<>) (>= primitive #<procedure:>=>) (<= primitive #<procedure:<=>) (= primitive #<procedure:=>) (+ primitive #<procedure:+>) (- primitive #<procedure:->) (* primitive #<procedure:*>) (/ primitive #<procedure:/>) (true . #t) (false . #f) (x . 3) (F1 procedure (x) ((define (F2 . #4#) . #5#) (displayln Entered proc (F1 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F2 x) (display Value of x after calling (F2 x): ) (displayln x) (displayln Exiting proc (F1 x))) #6#)}))))
+Value: #0=(procedure #1=(x) #2=((define (F4 x) (define (inc x) (displayln Entered proc (inc x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (+ x 1)) (displayln Entered proc (F4 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (set! x (inc x)) (display Value of x after incrementing: ) (displayln x) (displayln Exiting proc (F4 x))) (displayln Entered proc (F3 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F4 x) (display Value of x after calling (F4 x): ) (displayln x) (displayln Exiting proc (F3 x))) ({(x . 63) (F3 . #0#)} . #3=({(x . 21) (F2 procedure #4=(x) #5=((define (F3 . #1#) . #2#) (displayln Entered proc (F2 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F3 x) (display Value of x after calling (F3 x): ) (displayln x) (displayln Exiting proc (F2 x))) #3#)} . #6=({(car primitive #<procedure:car>) (cdr primitive #<procedure:cdr>) (cadr primitive #<procedure:cadr>) (cons primitive #<procedure:cons>) (not primitive #<procedure:not>) (eq? primitive #<procedure:eq?>) (null? primitive #<procedure:null?>) (display primitive #<procedure:display>) (displayln primitive #<procedure:displayln>) (newline primitive #<procedure:newline>) (assoc primitive #<procedure:assoc>) (void primitive #<procedure:void>) (> primitive #<procedure:>>) (< primitive #<procedure:<>) (>= primitive #<procedure:>=>) (<= primitive #<procedure:<=>) (= primitive #<procedure:=>) (+ primitive #<procedure:+>) (- primitive #<procedure:->) (* primitive #<procedure:*>) (/ primitive #<procedure:/>) (true . #t) (false . #f) (x . 7) (z . 9) (F1 procedure (x) ((define (F2 . #4#) . #5#) (displayln Entered proc (F1 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F2 x) (display Value of x after calling (F2 x): ) (displayln x) (displayln Exiting proc (F1 x))) #6#)}))))
 [End of Frame]
 Name: x
-Value: 9
+Value: 21
 Name: F2
-Value: #0=(procedure #1=(x) #2=((define (F3 x) (define (F4 x) (define (inc x) (displayln Entered proc (inc x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (+ x 1)) (displayln Entered proc (F4 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (set! x (inc x)) (display Value of x after incrementing: ) (displayln x) (displayln Exiting proc (F4 x))) (displayln Entered proc (F3 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F4 x) (display Value of x after calling (F4 x): ) (displayln x) (displayln Exiting proc (F3 x))) (displayln Entered proc (F2 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F3 x) (display Value of x after calling (F3 x): ) (displayln x) (displayln Exiting proc (F2 x))) ({(x . 9) (F2 . #0#)} . #3=({(car primitive #<procedure:car>) (cdr primitive #<procedure:cdr>) (cadr primitive #<procedure:cadr>) (cons primitive #<procedure:cons>) (not primitive #<procedure:not>) (eq? primitive #<procedure:eq?>) (null? primitive #<procedure:null?>) (display primitive #<procedure:display>) (displayln primitive #<procedure:displayln>) (newline primitive #<procedure:newline>) (assoc primitive #<procedure:assoc>) (void primitive #<procedure:void>) (> primitive #<procedure:>>) (< primitive #<procedure:<>) (>= primitive #<procedure:>=>) (<= primitive #<procedure:<=>) (= primitive #<procedure:=>) (+ primitive #<procedure:+>) (- primitive #<procedure:->) (* primitive #<procedure:*>) (/ primitive #<procedure:/>) (true . #t) (false . #f) (x . 3) (F1 procedure (x) ((define (F2 . #1#) . #2#) (displayln Entered proc (F1 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F2 x) (display Value of x after calling (F2 x): ) (displayln x) (displayln Exiting proc (F1 x))) #3#)})))
+Value: #0=(procedure #1=(x) #2=((define (F3 x) (define (F4 x) (define (inc x) (displayln Entered proc (inc x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (+ x 1)) (displayln Entered proc (F4 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (set! x (inc x)) (display Value of x after incrementing: ) (displayln x) (displayln Exiting proc (F4 x))) (displayln Entered proc (F3 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F4 x) (display Value of x after calling (F4 x): ) (displayln x) (displayln Exiting proc (F3 x))) (displayln Entered proc (F2 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F3 x) (display Value of x after calling (F3 x): ) (displayln x) (displayln Exiting proc (F2 x))) ({(x . 21) (F2 . #0#)} . #3=({(car primitive #<procedure:car>) (cdr primitive #<procedure:cdr>) (cadr primitive #<procedure:cadr>) (cons primitive #<procedure:cons>) (not primitive #<procedure:not>) (eq? primitive #<procedure:eq?>) (null? primitive #<procedure:null?>) (display primitive #<procedure:display>) (displayln primitive #<procedure:displayln>) (newline primitive #<procedure:newline>) (assoc primitive #<procedure:assoc>) (void primitive #<procedure:void>) (> primitive #<procedure:>>) (< primitive #<procedure:<>) (>= primitive #<procedure:>=>) (<= primitive #<procedure:<=>) (= primitive #<procedure:=>) (+ primitive #<procedure:+>) (- primitive #<procedure:->) (* primitive #<procedure:*>) (/ primitive #<procedure:/>) (true . #t) (false . #f) (x . 7) (z . 9) (F1 procedure (x) ((define (F2 . #1#) . #2#) (displayln Entered proc (F1 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F2 x) (display Value of x after calling (F2 x): ) (displayln x) (displayln Exiting proc (F1 x))) #3#)})))
 [End of Frame]
 [Last Frame (Not displaying this frame containing primitive procedures)]
 Entered proc (F3 x)
-Passed in value of x: 27
-Value of x after tripling: 81
+Passed in value of x: 63
+Value of x after tripling: 189
 Extended the environment:
 Name: x
-Value: 81
+Value: 189
 [End of Frame]
 Name: x
-Value: 81
+Value: 189
 Name: F4
-Value: #0=(procedure #1=(x) #2=((define (inc x) (displayln Entered proc (inc x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (+ x 1)) (displayln Entered proc (F4 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (set! x (inc x)) (display Value of x after incrementing: ) (displayln x) (displayln Exiting proc (F4 x))) ({(x . 81) (F4 . #0#)} . #3=({(x . 27) (F3 procedure #4=(x) #5=((define (F4 . #1#) . #2#) (displayln Entered proc (F3 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F4 x) (display Value of x after calling (F4 x): ) (displayln x) (displayln Exiting proc (F3 x))) #3#)} . #6=({(x . 9) (F2 procedure #7=(x) #8=((define (F3 . #4#) . #5#) (displayln Entered proc (F2 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F3 x) (display Value of x after calling (F3 x): ) (displayln x) (displayln Exiting proc (F2 x))) #6#)} . #9=({(car primitive #<procedure:car>) (cdr primitive #<procedure:cdr>) (cadr primitive #<procedure:cadr>) (cons primitive #<procedure:cons>) (not primitive #<procedure:not>) (eq? primitive #<procedure:eq?>) (null? primitive #<procedure:null?>) (display primitive #<procedure:display>) (displayln primitive #<procedure:displayln>) (newline primitive #<procedure:newline>) (assoc primitive #<procedure:assoc>) (void primitive #<procedure:void>) (> primitive #<procedure:>>) (< primitive #<procedure:<>) (>= primitive #<procedure:>=>) (<= primitive #<procedure:<=>) (= primitive #<procedure:=>) (+ primitive #<procedure:+>) (- primitive #<procedure:->) (* primitive #<procedure:*>) (/ primitive #<procedure:/>) (true . #t) (false . #f) (x . 3) (F1 procedure (x) ((define (F2 . #7#) . #8#) (displayln Entered proc (F1 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F2 x) (display Value of x after calling (F2 x): ) (displayln x) (displayln Exiting proc (F1 x))) #9#)})))))
+Value: #0=(procedure #1=(x) #2=((define (inc x) (displayln Entered proc (inc x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (+ x 1)) (displayln Entered proc (F4 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (set! x (inc x)) (display Value of x after incrementing: ) (displayln x) (displayln Exiting proc (F4 x))) ({(x . 189) (F4 . #0#)} . #3=({(x . 63) (F3 procedure #4=(x) #5=((define (F4 . #1#) . #2#) (displayln Entered proc (F3 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F4 x) (display Value of x after calling (F4 x): ) (displayln x) (displayln Exiting proc (F3 x))) #3#)} . #6=({(x . 21) (F2 procedure #7=(x) #8=((define (F3 . #4#) . #5#) (displayln Entered proc (F2 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F3 x) (display Value of x after calling (F3 x): ) (displayln x) (displayln Exiting proc (F2 x))) #6#)} . #9=({(car primitive #<procedure:car>) (cdr primitive #<procedure:cdr>) (cadr primitive #<procedure:cadr>) (cons primitive #<procedure:cons>) (not primitive #<procedure:not>) (eq? primitive #<procedure:eq?>) (null? primitive #<procedure:null?>) (display primitive #<procedure:display>) (displayln primitive #<procedure:displayln>) (newline primitive #<procedure:newline>) (assoc primitive #<procedure:assoc>) (void primitive #<procedure:void>) (> primitive #<procedure:>>) (< primitive #<procedure:<>) (>= primitive #<procedure:>=>) (<= primitive #<procedure:<=>) (= primitive #<procedure:=>) (+ primitive #<procedure:+>) (- primitive #<procedure:->) (* primitive #<procedure:*>) (/ primitive #<procedure:/>) (true . #t) (false . #f) (x . 7) (z . 9) (F1 procedure (x) ((define (F2 . #7#) . #8#) (displayln Entered proc (F1 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F2 x) (display Value of x after calling (F2 x): ) (displayln x) (displayln Exiting proc (F1 x))) #9#)})))))
 [End of Frame]
 Name: x
-Value: 27
+Value: 63
 Name: F3
-Value: #0=(procedure #1=(x) #2=((define (F4 x) (define (inc x) (displayln Entered proc (inc x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (+ x 1)) (displayln Entered proc (F4 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (set! x (inc x)) (display Value of x after incrementing: ) (displayln x) (displayln Exiting proc (F4 x))) (displayln Entered proc (F3 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F4 x) (display Value of x after calling (F4 x): ) (displayln x) (displayln Exiting proc (F3 x))) ({(x . 27) (F3 . #0#)} . #3=({(x . 9) (F2 procedure #4=(x) #5=((define (F3 . #1#) . #2#) (displayln Entered proc (F2 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F3 x) (display Value of x after calling (F3 x): ) (displayln x) (displayln Exiting proc (F2 x))) #3#)} . #6=({(car primitive #<procedure:car>) (cdr primitive #<procedure:cdr>) (cadr primitive #<procedure:cadr>) (cons primitive #<procedure:cons>) (not primitive #<procedure:not>) (eq? primitive #<procedure:eq?>) (null? primitive #<procedure:null?>) (display primitive #<procedure:display>) (displayln primitive #<procedure:displayln>) (newline primitive #<procedure:newline>) (assoc primitive #<procedure:assoc>) (void primitive #<procedure:void>) (> primitive #<procedure:>>) (< primitive #<procedure:<>) (>= primitive #<procedure:>=>) (<= primitive #<procedure:<=>) (= primitive #<procedure:=>) (+ primitive #<procedure:+>) (- primitive #<procedure:->) (* primitive #<procedure:*>) (/ primitive #<procedure:/>) (true . #t) (false . #f) (x . 3) (F1 procedure (x) ((define (F2 . #4#) . #5#) (displayln Entered proc (F1 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F2 x) (display Value of x after calling (F2 x): ) (displayln x) (displayln Exiting proc (F1 x))) #6#)}))))
+Value: #0=(procedure #1=(x) #2=((define (F4 x) (define (inc x) (displayln Entered proc (inc x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (+ x 1)) (displayln Entered proc (F4 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (set! x (inc x)) (display Value of x after incrementing: ) (displayln x) (displayln Exiting proc (F4 x))) (displayln Entered proc (F3 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F4 x) (display Value of x after calling (F4 x): ) (displayln x) (displayln Exiting proc (F3 x))) ({(x . 63) (F3 . #0#)} . #3=({(x . 21) (F2 procedure #4=(x) #5=((define (F3 . #1#) . #2#) (displayln Entered proc (F2 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F3 x) (display Value of x after calling (F3 x): ) (displayln x) (displayln Exiting proc (F2 x))) #3#)} . #6=({(car primitive #<procedure:car>) (cdr primitive #<procedure:cdr>) (cadr primitive #<procedure:cadr>) (cons primitive #<procedure:cons>) (not primitive #<procedure:not>) (eq? primitive #<procedure:eq?>) (null? primitive #<procedure:null?>) (display primitive #<procedure:display>) (displayln primitive #<procedure:displayln>) (newline primitive #<procedure:newline>) (assoc primitive #<procedure:assoc>) (void primitive #<procedure:void>) (> primitive #<procedure:>>) (< primitive #<procedure:<>) (>= primitive #<procedure:>=>) (<= primitive #<procedure:<=>) (= primitive #<procedure:=>) (+ primitive #<procedure:+>) (- primitive #<procedure:->) (* primitive #<procedure:*>) (/ primitive #<procedure:/>) (true . #t) (false . #f) (x . 7) (z . 9) (F1 procedure (x) ((define (F2 . #4#) . #5#) (displayln Entered proc (F1 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F2 x) (display Value of x after calling (F2 x): ) (displayln x) (displayln Exiting proc (F1 x))) #6#)}))))
 [End of Frame]
 Name: x
-Value: 9
+Value: 21
 Name: F2
-Value: #0=(procedure #1=(x) #2=((define (F3 x) (define (F4 x) (define (inc x) (displayln Entered proc (inc x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (+ x 1)) (displayln Entered proc (F4 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (set! x (inc x)) (display Value of x after incrementing: ) (displayln x) (displayln Exiting proc (F4 x))) (displayln Entered proc (F3 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F4 x) (display Value of x after calling (F4 x): ) (displayln x) (displayln Exiting proc (F3 x))) (displayln Entered proc (F2 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F3 x) (display Value of x after calling (F3 x): ) (displayln x) (displayln Exiting proc (F2 x))) ({(x . 9) (F2 . #0#)} . #3=({(car primitive #<procedure:car>) (cdr primitive #<procedure:cdr>) (cadr primitive #<procedure:cadr>) (cons primitive #<procedure:cons>) (not primitive #<procedure:not>) (eq? primitive #<procedure:eq?>) (null? primitive #<procedure:null?>) (display primitive #<procedure:display>) (displayln primitive #<procedure:displayln>) (newline primitive #<procedure:newline>) (assoc primitive #<procedure:assoc>) (void primitive #<procedure:void>) (> primitive #<procedure:>>) (< primitive #<procedure:<>) (>= primitive #<procedure:>=>) (<= primitive #<procedure:<=>) (= primitive #<procedure:=>) (+ primitive #<procedure:+>) (- primitive #<procedure:->) (* primitive #<procedure:*>) (/ primitive #<procedure:/>) (true . #t) (false . #f) (x . 3) (F1 procedure (x) ((define (F2 . #1#) . #2#) (displayln Entered proc (F1 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F2 x) (display Value of x after calling (F2 x): ) (displayln x) (displayln Exiting proc (F1 x))) #3#)})))
+Value: #0=(procedure #1=(x) #2=((define (F3 x) (define (F4 x) (define (inc x) (displayln Entered proc (inc x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (+ x 1)) (displayln Entered proc (F4 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (set! x (inc x)) (display Value of x after incrementing: ) (displayln x) (displayln Exiting proc (F4 x))) (displayln Entered proc (F3 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F4 x) (display Value of x after calling (F4 x): ) (displayln x) (displayln Exiting proc (F3 x))) (displayln Entered proc (F2 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F3 x) (display Value of x after calling (F3 x): ) (displayln x) (displayln Exiting proc (F2 x))) ({(x . 21) (F2 . #0#)} . #3=({(car primitive #<procedure:car>) (cdr primitive #<procedure:cdr>) (cadr primitive #<procedure:cadr>) (cons primitive #<procedure:cons>) (not primitive #<procedure:not>) (eq? primitive #<procedure:eq?>) (null? primitive #<procedure:null?>) (display primitive #<procedure:display>) (displayln primitive #<procedure:displayln>) (newline primitive #<procedure:newline>) (assoc primitive #<procedure:assoc>) (void primitive #<procedure:void>) (> primitive #<procedure:>>) (< primitive #<procedure:<>) (>= primitive #<procedure:>=>) (<= primitive #<procedure:<=>) (= primitive #<procedure:=>) (+ primitive #<procedure:+>) (- primitive #<procedure:->) (* primitive #<procedure:*>) (/ primitive #<procedure:/>) (true . #t) (false . #f) (x . 7) (z . 9) (F1 procedure (x) ((define (F2 . #1#) . #2#) (displayln Entered proc (F1 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F2 x) (display Value of x after calling (F2 x): ) (displayln x) (displayln Exiting proc (F1 x))) #3#)})))
 [End of Frame]
 [Last Frame (Not displaying this frame containing primitive procedures)]
 Entered proc (F4 x)
-Passed in value of x: 81
-Value of x after tripling: 243
+Passed in value of x: 189
+Value of x after tripling: 567
 Extended the environment:
 Name: x
-Value: 243
+Value: 567
 [End of Frame]
 Name: x
-Value: 243
+Value: 567
 Name: inc
-Value: #0=(procedure #1=(x) #2=((displayln Entered proc (inc x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (+ x 1)) ({(x . 243) (inc . #0#)} . #3=({(x . 81) (F4 procedure #4=(x) #5=((define (inc . #1#) . #2#) (displayln Entered proc (F4 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (set! x (inc x)) (display Value of x after incrementing: ) (displayln x) (displayln Exiting proc (F4 x))) #3#)} . #6=({(x . 27) (F3 procedure #7=(x) #8=((define (F4 . #4#) . #5#) (displayln Entered proc (F3 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F4 x) (display Value of x after calling (F4 x): ) (displayln x) (displayln Exiting proc (F3 x))) #6#)} . #9=({(x . 9) (F2 procedure #10=(x) #11=((define (F3 . #7#) . #8#) (displayln Entered proc (F2 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F3 x) (display Value of x after calling (F3 x): ) (displayln x) (displayln Exiting proc (F2 x))) #9#)} . #12=({(car primitive #<procedure:car>) (cdr primitive #<procedure:cdr>) (cadr primitive #<procedure:cadr>) (cons primitive #<procedure:cons>) (not primitive #<procedure:not>) (eq? primitive #<procedure:eq?>) (null? primitive #<procedure:null?>) (display primitive #<procedure:display>) (displayln primitive #<procedure:displayln>) (newline primitive #<procedure:newline>) (assoc primitive #<procedure:assoc>) (void primitive #<procedure:void>) (> primitive #<procedure:>>) (< primitive #<procedure:<>) (>= primitive #<procedure:>=>) (<= primitive #<procedure:<=>) (= primitive #<procedure:=>) (+ primitive #<procedure:+>) (- primitive #<procedure:->) (* primitive #<procedure:*>) (/ primitive #<procedure:/>) (true . #t) (false . #f) (x . 3) (F1 procedure (x) ((define (F2 . #10#) . #11#) (displayln Entered proc (F1 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F2 x) (display Value of x after calling (F2 x): ) (displayln x) (displayln Exiting proc (F1 x))) #12#)}))))))
+Value: #0=(procedure #1=(x) #2=((displayln Entered proc (inc x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (+ x 1)) ({(x . 567) (inc . #0#)} . #3=({(x . 189) (F4 procedure #4=(x) #5=((define (inc . #1#) . #2#) (displayln Entered proc (F4 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (set! x (inc x)) (display Value of x after incrementing: ) (displayln x) (displayln Exiting proc (F4 x))) #3#)} . #6=({(x . 63) (F3 procedure #7=(x) #8=((define (F4 . #4#) . #5#) (displayln Entered proc (F3 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F4 x) (display Value of x after calling (F4 x): ) (displayln x) (displayln Exiting proc (F3 x))) #6#)} . #9=({(x . 21) (F2 procedure #10=(x) #11=((define (F3 . #7#) . #8#) (displayln Entered proc (F2 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F3 x) (display Value of x after calling (F3 x): ) (displayln x) (displayln Exiting proc (F2 x))) #9#)} . #12=({(car primitive #<procedure:car>) (cdr primitive #<procedure:cdr>) (cadr primitive #<procedure:cadr>) (cons primitive #<procedure:cons>) (not primitive #<procedure:not>) (eq? primitive #<procedure:eq?>) (null? primitive #<procedure:null?>) (display primitive #<procedure:display>) (displayln primitive #<procedure:displayln>) (newline primitive #<procedure:newline>) (assoc primitive #<procedure:assoc>) (void primitive #<procedure:void>) (> primitive #<procedure:>>) (< primitive #<procedure:<>) (>= primitive #<procedure:>=>) (<= primitive #<procedure:<=>) (= primitive #<procedure:=>) (+ primitive #<procedure:+>) (- primitive #<procedure:->) (* primitive #<procedure:*>) (/ primitive #<procedure:/>) (true . #t) (false . #f) (x . 7) (z . 9) (F1 procedure (x) ((define (F2 . #10#) . #11#) (displayln Entered proc (F1 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F2 x) (display Value of x after calling (F2 x): ) (displayln x) (displayln Exiting proc (F1 x))) #12#)}))))))
 [End of Frame]
 Name: x
-Value: 81
+Value: 189
 Name: F4
-Value: #0=(procedure #1=(x) #2=((define (inc x) (displayln Entered proc (inc x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (+ x 1)) (displayln Entered proc (F4 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (set! x (inc x)) (display Value of x after incrementing: ) (displayln x) (displayln Exiting proc (F4 x))) ({(x . 81) (F4 . #0#)} . #3=({(x . 27) (F3 procedure #4=(x) #5=((define (F4 . #1#) . #2#) (displayln Entered proc (F3 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F4 x) (display Value of x after calling (F4 x): ) (displayln x) (displayln Exiting proc (F3 x))) #3#)} . #6=({(x . 9) (F2 procedure #7=(x) #8=((define (F3 . #4#) . #5#) (displayln Entered proc (F2 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F3 x) (display Value of x after calling (F3 x): ) (displayln x) (displayln Exiting proc (F2 x))) #6#)} . #9=({(car primitive #<procedure:car>) (cdr primitive #<procedure:cdr>) (cadr primitive #<procedure:cadr>) (cons primitive #<procedure:cons>) (not primitive #<procedure:not>) (eq? primitive #<procedure:eq?>) (null? primitive #<procedure:null?>) (display primitive #<procedure:display>) (displayln primitive #<procedure:displayln>) (newline primitive #<procedure:newline>) (assoc primitive #<procedure:assoc>) (void primitive #<procedure:void>) (> primitive #<procedure:>>) (< primitive #<procedure:<>) (>= primitive #<procedure:>=>) (<= primitive #<procedure:<=>) (= primitive #<procedure:=>) (+ primitive #<procedure:+>) (- primitive #<procedure:->) (* primitive #<procedure:*>) (/ primitive #<procedure:/>) (true . #t) (false . #f) (x . 3) (F1 procedure (x) ((define (F2 . #7#) . #8#) (displayln Entered proc (F1 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F2 x) (display Value of x after calling (F2 x): ) (displayln x) (displayln Exiting proc (F1 x))) #9#)})))))
+Value: #0=(procedure #1=(x) #2=((define (inc x) (displayln Entered proc (inc x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (+ x 1)) (displayln Entered proc (F4 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (set! x (inc x)) (display Value of x after incrementing: ) (displayln x) (displayln Exiting proc (F4 x))) ({(x . 189) (F4 . #0#)} . #3=({(x . 63) (F3 procedure #4=(x) #5=((define (F4 . #1#) . #2#) (displayln Entered proc (F3 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F4 x) (display Value of x after calling (F4 x): ) (displayln x) (displayln Exiting proc (F3 x))) #3#)} . #6=({(x . 21) (F2 procedure #7=(x) #8=((define (F3 . #4#) . #5#) (displayln Entered proc (F2 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F3 x) (display Value of x after calling (F3 x): ) (displayln x) (displayln Exiting proc (F2 x))) #6#)} . #9=({(car primitive #<procedure:car>) (cdr primitive #<procedure:cdr>) (cadr primitive #<procedure:cadr>) (cons primitive #<procedure:cons>) (not primitive #<procedure:not>) (eq? primitive #<procedure:eq?>) (null? primitive #<procedure:null?>) (display primitive #<procedure:display>) (displayln primitive #<procedure:displayln>) (newline primitive #<procedure:newline>) (assoc primitive #<procedure:assoc>) (void primitive #<procedure:void>) (> primitive #<procedure:>>) (< primitive #<procedure:<>) (>= primitive #<procedure:>=>) (<= primitive #<procedure:<=>) (= primitive #<procedure:=>) (+ primitive #<procedure:+>) (- primitive #<procedure:->) (* primitive #<procedure:*>) (/ primitive #<procedure:/>) (true . #t) (false . #f) (x . 7) (z . 9) (F1 procedure (x) ((define (F2 . #7#) . #8#) (displayln Entered proc (F1 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F2 x) (display Value of x after calling (F2 x): ) (displayln x) (displayln Exiting proc (F1 x))) #9#)})))))
 [End of Frame]
 Name: x
-Value: 27
+Value: 63
 Name: F3
-Value: #0=(procedure #1=(x) #2=((define (F4 x) (define (inc x) (displayln Entered proc (inc x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (+ x 1)) (displayln Entered proc (F4 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (set! x (inc x)) (display Value of x after incrementing: ) (displayln x) (displayln Exiting proc (F4 x))) (displayln Entered proc (F3 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F4 x) (display Value of x after calling (F4 x): ) (displayln x) (displayln Exiting proc (F3 x))) ({(x . 27) (F3 . #0#)} . #3=({(x . 9) (F2 procedure #4=(x) #5=((define (F3 . #1#) . #2#) (displayln Entered proc (F2 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F3 x) (display Value of x after calling (F3 x): ) (displayln x) (displayln Exiting proc (F2 x))) #3#)} . #6=({(car primitive #<procedure:car>) (cdr primitive #<procedure:cdr>) (cadr primitive #<procedure:cadr>) (cons primitive #<procedure:cons>) (not primitive #<procedure:not>) (eq? primitive #<procedure:eq?>) (null? primitive #<procedure:null?>) (display primitive #<procedure:display>) (displayln primitive #<procedure:displayln>) (newline primitive #<procedure:newline>) (assoc primitive #<procedure:assoc>) (void primitive #<procedure:void>) (> primitive #<procedure:>>) (< primitive #<procedure:<>) (>= primitive #<procedure:>=>) (<= primitive #<procedure:<=>) (= primitive #<procedure:=>) (+ primitive #<procedure:+>) (- primitive #<procedure:->) (* primitive #<procedure:*>) (/ primitive #<procedure:/>) (true . #t) (false . #f) (x . 3) (F1 procedure (x) ((define (F2 . #4#) . #5#) (displayln Entered proc (F1 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F2 x) (display Value of x after calling (F2 x): ) (displayln x) (displayln Exiting proc (F1 x))) #6#)}))))
+Value: #0=(procedure #1=(x) #2=((define (F4 x) (define (inc x) (displayln Entered proc (inc x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (+ x 1)) (displayln Entered proc (F4 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (set! x (inc x)) (display Value of x after incrementing: ) (displayln x) (displayln Exiting proc (F4 x))) (displayln Entered proc (F3 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F4 x) (display Value of x after calling (F4 x): ) (displayln x) (displayln Exiting proc (F3 x))) ({(x . 63) (F3 . #0#)} . #3=({(x . 21) (F2 procedure #4=(x) #5=((define (F3 . #1#) . #2#) (displayln Entered proc (F2 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F3 x) (display Value of x after calling (F3 x): ) (displayln x) (displayln Exiting proc (F2 x))) #3#)} . #6=({(car primitive #<procedure:car>) (cdr primitive #<procedure:cdr>) (cadr primitive #<procedure:cadr>) (cons primitive #<procedure:cons>) (not primitive #<procedure:not>) (eq? primitive #<procedure:eq?>) (null? primitive #<procedure:null?>) (display primitive #<procedure:display>) (displayln primitive #<procedure:displayln>) (newline primitive #<procedure:newline>) (assoc primitive #<procedure:assoc>) (void primitive #<procedure:void>) (> primitive #<procedure:>>) (< primitive #<procedure:<>) (>= primitive #<procedure:>=>) (<= primitive #<procedure:<=>) (= primitive #<procedure:=>) (+ primitive #<procedure:+>) (- primitive #<procedure:->) (* primitive #<procedure:*>) (/ primitive #<procedure:/>) (true . #t) (false . #f) (x . 7) (z . 9) (F1 procedure (x) ((define (F2 . #4#) . #5#) (displayln Entered proc (F1 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F2 x) (display Value of x after calling (F2 x): ) (displayln x) (displayln Exiting proc (F1 x))) #6#)}))))
 [End of Frame]
 Name: x
-Value: 9
+Value: 21
 Name: F2
-Value: #0=(procedure #1=(x) #2=((define (F3 x) (define (F4 x) (define (inc x) (displayln Entered proc (inc x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (+ x 1)) (displayln Entered proc (F4 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (set! x (inc x)) (display Value of x after incrementing: ) (displayln x) (displayln Exiting proc (F4 x))) (displayln Entered proc (F3 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F4 x) (display Value of x after calling (F4 x): ) (displayln x) (displayln Exiting proc (F3 x))) (displayln Entered proc (F2 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F3 x) (display Value of x after calling (F3 x): ) (displayln x) (displayln Exiting proc (F2 x))) ({(x . 9) (F2 . #0#)} . #3=({(car primitive #<procedure:car>) (cdr primitive #<procedure:cdr>) (cadr primitive #<procedure:cadr>) (cons primitive #<procedure:cons>) (not primitive #<procedure:not>) (eq? primitive #<procedure:eq?>) (null? primitive #<procedure:null?>) (display primitive #<procedure:display>) (displayln primitive #<procedure:displayln>) (newline primitive #<procedure:newline>) (assoc primitive #<procedure:assoc>) (void primitive #<procedure:void>) (> primitive #<procedure:>>) (< primitive #<procedure:<>) (>= primitive #<procedure:>=>) (<= primitive #<procedure:<=>) (= primitive #<procedure:=>) (+ primitive #<procedure:+>) (- primitive #<procedure:->) (* primitive #<procedure:*>) (/ primitive #<procedure:/>) (true . #t) (false . #f) (x . 3) (F1 procedure (x) ((define (F2 . #1#) . #2#) (displayln Entered proc (F1 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F2 x) (display Value of x after calling (F2 x): ) (displayln x) (displayln Exiting proc (F1 x))) #3#)})))
+Value: #0=(procedure #1=(x) #2=((define (F3 x) (define (F4 x) (define (inc x) (displayln Entered proc (inc x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (+ x 1)) (displayln Entered proc (F4 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (set! x (inc x)) (display Value of x after incrementing: ) (displayln x) (displayln Exiting proc (F4 x))) (displayln Entered proc (F3 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F4 x) (display Value of x after calling (F4 x): ) (displayln x) (displayln Exiting proc (F3 x))) (displayln Entered proc (F2 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F3 x) (display Value of x after calling (F3 x): ) (displayln x) (displayln Exiting proc (F2 x))) ({(x . 21) (F2 . #0#)} . #3=({(car primitive #<procedure:car>) (cdr primitive #<procedure:cdr>) (cadr primitive #<procedure:cadr>) (cons primitive #<procedure:cons>) (not primitive #<procedure:not>) (eq? primitive #<procedure:eq?>) (null? primitive #<procedure:null?>) (display primitive #<procedure:display>) (displayln primitive #<procedure:displayln>) (newline primitive #<procedure:newline>) (assoc primitive #<procedure:assoc>) (void primitive #<procedure:void>) (> primitive #<procedure:>>) (< primitive #<procedure:<>) (>= primitive #<procedure:>=>) (<= primitive #<procedure:<=>) (= primitive #<procedure:=>) (+ primitive #<procedure:+>) (- primitive #<procedure:->) (* primitive #<procedure:*>) (/ primitive #<procedure:/>) (true . #t) (false . #f) (x . 7) (z . 9) (F1 procedure (x) ((define (F2 . #1#) . #2#) (displayln Entered proc (F1 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F2 x) (display Value of x after calling (F2 x): ) (displayln x) (displayln Exiting proc (F1 x))) #3#)})))
 [End of Frame]
 [Last Frame (Not displaying this frame containing primitive procedures)]
 Entered proc (inc x)
-Passed in value of x: 243
-Value of x after tripling: 729
-Value of x after incrementing: 730
+Passed in value of x: 567
+Value of x after tripling: 1701
+Value of x after incrementing: 1702
 Exiting proc (F4 x)
-Value of x after calling (F4 x): 81
+Value of x after calling (F4 x): 189
 Exiting proc (F3 x)
-Value of x after calling (F3 x): 27
+Value of x after calling (F3 x): 63
 Exiting proc (F2 x)
-Value of x after calling (F2 x): 9
+Value of x after calling (F2 x): 21
 Exiting proc (F1 x)
 
 [Metacircular Evaluator Output] >>> #<void>
 [Metacircular Evaluator Input] >>>
 x
 
-[Metacircular Evaluator Output] >>> 3
+[Metacircular Evaluator Output] >>> 7
 [Metacircular Evaluator Input] >>>
 (define x 24)
 
@@ -1635,6 +1725,10 @@ x
 y
 
 [Metacircular Evaluator Output] >>> 84
+[Metacircular Evaluator Input] >>>
+z
+
+[Metacircular Evaluator Output] >>> 9
 [Metacircular Evaluator Input] >>>
 (make-unbound! y)
 
@@ -1686,4 +1780,6 @@ x
 
 [Metacircular Evaluator Output] >>> Unbound variable 'x
 [Metacircular Evaluator Input] >>>
-.
+quit
+'Done
+> 
