@@ -9,11 +9,11 @@
 ; E X P L A N A T I O N
 
 ; This file has the implementation of part a of this problem: Eva's way of explicitly typing in
-; the definition of 'map' into the metacircula evaluator's input prompt. I also type in the 
+; the definition of 'map' into the metacircular evaluator's input prompt. I also type in the 
 ; definition of an 'inc' procedure to increment its (numerical) input. And also make use
 ; of Racket's primitive procedure 'abs'. 'inc' and 'abs' are the procedure arguments to
 ; 'map' in different tests. As can be seen from the results, everything works as expected.
-; Note that in this program, 'map' and 'in' are executed by the metacircular evaluator.
+; Note that in this program, 'map' and 'inc' are executed by the metacircular evaluator.
 ; 'abs' is executed as a primitive procedure.
 
 ; S O L U T I O N

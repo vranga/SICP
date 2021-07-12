@@ -9,14 +9,14 @@
 ; E X P L A N A T I O N
 
 ; This file has the implementation of part b of this problem: Louis' way of installing the
-; system version of 'map' as a primitive for the metacircular envaluator. See the results at
+; system version of 'map' as a primitive for the metacircular evaluator. See the results at
 ; the bottom. The evaluator does not work as expected.
 ;
 ; Note that one of the arguments to 'map' is a procedure. The metacircular evaluator constructs
 ; all the arguments to be passed in to any procedures (compound or primitive) that it executes.
-; So the proc argument that it passes to the primitive 'map' is represented sytactically and
+; So the proc argument that it passes to the primitive 'map' is represented syntactically and
 ; semantically in the form that the metacircular evaluator understands. The underlying Racket
-; interpreter does not know anything about the meta-circular evaluator's representaions.
+; interpreter does not know anything about the metacircular evaluator's representations.
 ; The Racket version of 'map' expects a Racket procedure as its argument which it does not find
 ; when invoked by the metacircular evaluator. Hence it fails with 'contract violation' error
 ; messages.
