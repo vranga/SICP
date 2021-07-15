@@ -294,7 +294,7 @@
 )
 
 (define (make-let var-bindings body)
-	(list 'let var-bindings body)
+	(cons 'let (cons var-bindings body))
 )
 
 (define (EVAL-let exp env)
@@ -315,7 +315,7 @@
 (define (let*-var-bindings exp) (cadr exp))
 (define (let*-first-var-binding var-bindings) (car var-bindings))
 (define (let*-rest-var-bindings var-bindings) (cdr var-bindings))
-(define (let*-body exp) (caddr exp))
+(define (let*-body exp) (cddr exp))
 
 ; (let* ((x 3)
 ;        (y (+ x 2))
@@ -336,9 +336,9 @@
 	(if (not (null? (let*-rest-var-bindings (let*-var-bindings exp))))
 		(make-let
 			(list (let*-first-var-binding (let*-var-bindings exp)))
-			(let*->nested-lets
+			(list (let*->nested-lets
 				(make-let* (let*-rest-var-bindings (let*-var-bindings exp)) (let*-body exp))
-			)
+			))
 		)
 		(make-let
 			(list (let*-first-var-binding (let*-var-bindings exp)))
@@ -348,7 +348,7 @@
 )
 
 (define (make-let* var-bindings body)
-	(list 'let* var-bindings body)
+	(cons 'let* (cons var-bindings body))
 )
 
 (define (EVAL-let* exp env)
@@ -1300,11 +1300,12 @@
 
 ; Tests
 
+(driver-loop)
+
 ; Test Results
 
-Welcome to DrRacket, version 6.11 [3m].
-Language: racket, with debugging; memory limit: 4096 MB.
-> (driver-loop)
+Welcome to DrRacket, version 8.1 [cs].
+Language: racket, with debugging; memory limit: 128 MB.
 
 [Metacircular Evaluator Input] >>>
 (define x 1)
@@ -1404,10 +1405,6 @@ EVAL-for converted (for (i 1) (i 40) inc (display i) (newline)) to:
 (define x 1)
 
 [Metacircular Evaluator Output] >>> ok
-[Metacircular Evaluator Input] >>>
-x
-
-[Metacircular Evaluator Output] >>> 1
 [Metacircular Evaluator Input] >>>
 x
 
