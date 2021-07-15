@@ -328,7 +328,7 @@
 )
 
 (define (make-let var-bindings body)
-	(list 'let var-bindings body)
+	(cons 'let (cons var-bindings body))
 )
 
 (define (EVAL-let expression env)
@@ -349,7 +349,7 @@
 (define (let*-var-bindings expression) (cadr expression))
 (define (let*-first-var-binding var-bindings) (car var-bindings))
 (define (let*-rest-var-bindings var-bindings) (cdr var-bindings))
-(define (let*-body expression) (caddr expression))
+(define (let*-body expression) (cddr expression))
 
 ; (let* ((x 3)
 ;        (y (+ x 2))
@@ -370,9 +370,9 @@
 	(if (not (null? (let*-rest-var-bindings (let*-var-bindings expression))))
 		(make-let
 			(list (let*-first-var-binding (let*-var-bindings expression)))
-			(let*->nested-lets
+			(list (let*->nested-lets
 				(make-let* (let*-rest-var-bindings (let*-var-bindings expression)) (let*-body expression))
-			)
+			))
 		)
 		(make-let
 			(list (let*-first-var-binding (let*-var-bindings expression)))
@@ -382,7 +382,7 @@
 )
 
 (define (make-let* var-bindings body)
-	(list 'let* var-bindings body)
+	(cons 'let* (cons var-bindings body))
 )
 
 (define (EVAL-let* expression env)
