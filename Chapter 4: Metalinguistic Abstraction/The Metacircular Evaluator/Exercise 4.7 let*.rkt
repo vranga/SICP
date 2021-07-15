@@ -289,7 +289,7 @@
 )
 
 (define (make-let var-bindings body)
-	(list 'let var-bindings body)
+	(cons 'let (cons var-bindings body))
 )
 
 ; let* Expressions
@@ -297,7 +297,7 @@
 (define (let*-var-bindings exp) (cadr exp))
 (define (let*-first-var-binding var-bindings) (car var-bindings))
 (define (let*-rest-var-bindings var-bindings) (cdr var-bindings))
-(define (let*-body exp) (caddr exp))
+(define (let*-body exp) (cddr exp))
 
 ; (let* ((x 3)
 ;        (y (+ x 2))
@@ -318,9 +318,9 @@
 	(if (not (null? (let*-rest-var-bindings (let*-var-bindings exp))))
 		(make-let
 			(list (let*-first-var-binding (let*-var-bindings exp)))
-			(let*->nested-lets
+			(list (let*->nested-lets
 				(make-let* (let*-rest-var-bindings (let*-var-bindings exp)) (let*-body exp))
-			)
+			))
 		)
 		(make-let
 			(list (let*-first-var-binding (let*-var-bindings exp)))
@@ -337,7 +337,7 @@
 )
 
 (define (make-let* var-bindings body)
-	(list 'let* var-bindings body)
+	(cons 'let* (cons var-bindings body))
 )
 
 ; "begin" Expressions
@@ -590,6 +590,7 @@
 		(list 'eq? eq?)
 		(list 'null? null?)
 		(list 'display display)
+		(list 'displayln displayln)
 		(list 'assoc assoc)
 		(list '> >)
 		(list '< <)
@@ -902,12 +903,44 @@
 	 )
 )
 
+(define letstar2
+	'(let* ((x 3) (y (+ x 2)) (z (+ x y 5)))
+		(displayln 'In-letstar2)
+		(* x z)
+	 )
+)
+
+(define letstarnested
+	'(let* ((x 3) (y (+ x 2)) (z (+ x y 5)))
+		(let* ((x 3) (y (+ x 2)) (z (+ x y 5)))
+			(displayln 'In-letstar2)
+			(* x z)
+	 	)
+	 )
+)
+
 ; Test Results
 
-Welcome to DrRacket, version 6.11 [3m].
-Language: racket, with debugging; memory limit: 4096 MB.
+Welcome to DrRacket, version 8.1 [cs].
+Language: racket, with debugging; memory limit: 128 MB.
+> letstar1
+'(let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (* x z))
+> (make-let* (let*-var-bindings letstar1) (let*-body letstar1))
+'(let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (* x z))
+> letstar2
+'(let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (displayln 'In-letstar2) (* x z))
+> (make-let* (let*-var-bindings letstar2) (let*-body letstar2))
+'(let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (displayln 'In-letstar2) (* x z))
+> letstarnested
+'(let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (displayln 'In-letstar2) (* x z)))
+> (make-let* (let*-var-bindings letstarnested) (let*-body letstarnested))
+'(let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (displayln 'In-letstar2) (* x z)))
 > (let*->nested-lets letstar1)
 '(let ((x 3)) (let ((y (+ x 2))) (let ((z (+ x y 5))) (* x z))))
+> (let*->nested-lets letstar2)
+'(let ((x 3)) (let ((y (+ x 2))) (let ((z (+ x y 5))) (displayln 'In-letstar2) (* x z))))
+> (let*->nested-lets letstarnested)
+'(let ((x 3)) (let ((y (+ x 2))) (let ((z (+ x y 5))) (let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (displayln 'In-letstar2) (* x z)))))
 > (driver-loop)
 
 
@@ -937,6 +970,95 @@ In proc lookup-variable-value to execute: #<procedure:exp>
 
 ;;; EVAL value:
 39
+
+;;; EVAL input:
+(let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (displayln 'Multiplying...) (* x z))
+In proc EVAL-let* to execute: (let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (displayln 'Multiplying...) (* x z))
+In proc EVAL-let to execute: (let ((x 3)) (let ((y (+ x 2))) (let ((z (+ x y 5))) (displayln 'Multiplying...) (* x z))))
+Type not found: (lambda (x) (let ((y (+ x 2))) (let ((z (+ x y 5))) (displayln 'Multiplying...) (* x z))))
+In proc EVAL-lambda to execute: (lambda (x) (let ((y (+ x 2))) (let ((z (+ x y 5))) (displayln 'Multiplying...) (* x z))))
+In proc EVAL-let to execute: (let ((y (+ x 2))) (let ((z (+ x y 5))) (displayln 'Multiplying...) (* x z)))
+Type not found: (lambda (y) (let ((z (+ x y 5))) (displayln 'Multiplying...) (* x z)))
+In proc EVAL-lambda to execute: (lambda (y) (let ((z (+ x y 5))) (displayln 'Multiplying...) (* x z)))
+Type not found: +
+In proc lookup-variable-value to execute: #<procedure:exp>
+In proc lookup-variable-value to execute: #<procedure:exp>
+In proc EVAL-let to execute: (let ((z (+ x y 5))) (displayln 'Multiplying...) (* x z))
+Type not found: (lambda (z) (displayln 'Multiplying...) (* x z))
+In proc EVAL-lambda to execute: (lambda (z) (displayln 'Multiplying...) (* x z))
+Type not found: +
+In proc lookup-variable-value to execute: #<procedure:exp>
+In proc lookup-variable-value to execute: #<procedure:exp>
+In proc lookup-variable-value to execute: #<procedure:exp>
+Type not found: displayln
+In proc lookup-variable-value to execute: #<procedure:exp>
+Multiplying...
+Type not found: *
+In proc lookup-variable-value to execute: #<procedure:exp>
+In proc lookup-variable-value to execute: #<procedure:exp>
+In proc lookup-variable-value to execute: #<procedure:exp>
+
+;;; EVAL value:
+39
+
+;;; EVAL input:
+(let* ((x 3) (y (+ x 2)) (z (+ x y 5)))
+	(displayln 'Multiplying...)
+	(* 
+		(let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (displayln 'Multiplying...) (* x z))
+		z
+	)
+)
+In proc EVAL-let* to execute: (let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (displayln 'Multiplying...) (* (let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (displayln 'Multiplying...) (* x z)) z))
+In proc EVAL-let to execute: (let ((x 3)) (let ((y (+ x 2))) (let ((z (+ x y 5))) (displayln 'Multiplying...) (* (let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (displayln 'Multiplying...) (* x z)) z))))
+Type not found: (lambda (x) (let ((y (+ x 2))) (let ((z (+ x y 5))) (displayln 'Multiplying...) (* (let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (displayln 'Multiplying...) (* x z)) z))))
+In proc EVAL-lambda to execute: (lambda (x) (let ((y (+ x 2))) (let ((z (+ x y 5))) (displayln 'Multiplying...) (* (let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (displayln 'Multiplying...) (* x z)) z))))
+In proc EVAL-let to execute: (let ((y (+ x 2))) (let ((z (+ x y 5))) (displayln 'Multiplying...) (* (let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (displayln 'Multiplying...) (* x z)) z)))
+Type not found: (lambda (y) (let ((z (+ x y 5))) (displayln 'Multiplying...) (* (let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (displayln 'Multiplying...) (* x z)) z)))
+In proc EVAL-lambda to execute: (lambda (y) (let ((z (+ x y 5))) (displayln 'Multiplying...) (* (let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (displayln 'Multiplying...) (* x z)) z)))
+Type not found: +
+In proc lookup-variable-value to execute: #<procedure:exp>
+In proc lookup-variable-value to execute: #<procedure:exp>
+In proc EVAL-let to execute: (let ((z (+ x y 5))) (displayln 'Multiplying...) (* (let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (displayln 'Multiplying...) (* x z)) z))
+Type not found: (lambda (z) (displayln 'Multiplying...) (* (let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (displayln 'Multiplying...) (* x z)) z))
+In proc EVAL-lambda to execute: (lambda (z) (displayln 'Multiplying...) (* (let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (displayln 'Multiplying...) (* x z)) z))
+Type not found: +
+In proc lookup-variable-value to execute: #<procedure:exp>
+In proc lookup-variable-value to execute: #<procedure:exp>
+In proc lookup-variable-value to execute: #<procedure:exp>
+Type not found: displayln
+In proc lookup-variable-value to execute: #<procedure:exp>
+Multiplying...
+Type not found: *
+In proc lookup-variable-value to execute: #<procedure:exp>
+In proc EVAL-let* to execute: (let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (displayln 'Multiplying...) (* x z))
+In proc EVAL-let to execute: (let ((x 3)) (let ((y (+ x 2))) (let ((z (+ x y 5))) (displayln 'Multiplying...) (* x z))))
+Type not found: (lambda (x) (let ((y (+ x 2))) (let ((z (+ x y 5))) (displayln 'Multiplying...) (* x z))))
+In proc EVAL-lambda to execute: (lambda (x) (let ((y (+ x 2))) (let ((z (+ x y 5))) (displayln 'Multiplying...) (* x z))))
+In proc EVAL-let to execute: (let ((y (+ x 2))) (let ((z (+ x y 5))) (displayln 'Multiplying...) (* x z)))
+Type not found: (lambda (y) (let ((z (+ x y 5))) (displayln 'Multiplying...) (* x z)))
+In proc EVAL-lambda to execute: (lambda (y) (let ((z (+ x y 5))) (displayln 'Multiplying...) (* x z)))
+Type not found: +
+In proc lookup-variable-value to execute: #<procedure:exp>
+In proc lookup-variable-value to execute: #<procedure:exp>
+In proc EVAL-let to execute: (let ((z (+ x y 5))) (displayln 'Multiplying...) (* x z))
+Type not found: (lambda (z) (displayln 'Multiplying...) (* x z))
+In proc EVAL-lambda to execute: (lambda (z) (displayln 'Multiplying...) (* x z))
+Type not found: +
+In proc lookup-variable-value to execute: #<procedure:exp>
+In proc lookup-variable-value to execute: #<procedure:exp>
+In proc lookup-variable-value to execute: #<procedure:exp>
+Type not found: displayln
+In proc lookup-variable-value to execute: #<procedure:exp>
+Multiplying...
+Type not found: *
+In proc lookup-variable-value to execute: #<procedure:exp>
+In proc lookup-variable-value to execute: #<procedure:exp>
+In proc lookup-variable-value to execute: #<procedure:exp>
+In proc lookup-variable-value to execute: #<procedure:exp>
+
+;;; EVAL value:
+507
 
 ;;; EVAL input:
 .
