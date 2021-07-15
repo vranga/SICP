@@ -302,7 +302,7 @@
 )
 
 (define (make-let var-bindings body)
-	(list 'let var-bindings body)
+	(cons 'let (cons var-bindings body))
 )
 
 (define (EVAL-let expression env)
@@ -323,7 +323,7 @@
 (define (let*-var-bindings expression) (cadr expression))
 (define (let*-first-var-binding var-bindings) (car var-bindings))
 (define (let*-rest-var-bindings var-bindings) (cdr var-bindings))
-(define (let*-body expression) (caddr expression))
+(define (let*-body expression) (cddr expression))
 
 ; (let* ((x 3)
 ;        (y (+ x 2))
@@ -344,9 +344,9 @@
 	(if (not (null? (let*-rest-var-bindings (let*-var-bindings expression))))
 		(make-let
 			(list (let*-first-var-binding (let*-var-bindings expression)))
-			(let*->nested-lets
+			(list (let*->nested-lets
 				(make-let* (let*-rest-var-bindings (let*-var-bindings expression)) (let*-body expression))
-			)
+			))
 		)
 		(make-let
 			(list (let*-first-var-binding (let*-var-bindings expression)))
@@ -356,7 +356,7 @@
 )
 
 (define (make-let* var-bindings body)
-	(list 'let* var-bindings body)
+	(cons 'let* (cons var-bindings body))
 )
 
 (define (EVAL-let* expression env)
@@ -1327,11 +1327,12 @@
 
 ; Tests
 
+(driver-loop)
+
 ; Test Results
 
 Welcome to DrRacket, version 8.1 [cs].
 Language: racket, with debugging; memory limit: 128 MB.
-> (driver-loop)
 
 [Metacircular Evaluator Input] >>>
 (define x -10)
@@ -1358,7 +1359,6 @@ x:-10
 (x after setting:)-8
 EVAL-while converted (while (< x 10) (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline)) to: 
 (begin (define while-block (lambda () (if (< x 10) (begin (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) (while-block)) 'done))) (while-block))
-In proc EVAL-lambda to evaluate: (lambda () (if (< x 10) (begin (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) (while-block)) 'done))
 x:-8
 (x after setting:)-6
 x:-6
@@ -1383,7 +1383,6 @@ x:8
 (define (inc val)
     (+ val 1)
 )
-In proc EVAL-lambda to evaluate: (lambda (val) (+ val 1))
 
 [Metacircular Evaluator Output] >>> ok
 [Metacircular Evaluator Input] >>>
@@ -1397,7 +1396,6 @@ In proc EVAL-lambda to evaluate: (lambda (val) (+ val 1))
 )
 EVAL-for converted (for (i 1) (i 40) inc (display i) (newline)) to: 
 (begin (define i 1) (define for-block (lambda () (if (<= i 40) (begin (display i) (newline) (set! i (inc i)) (for-block)) 'done))) (for-block))
-In proc EVAL-lambda to evaluate: (lambda () (if (<= i 40) (begin (display i) (newline) (set! i (inc i)) (for-block)) 'done))
 1
 2
 3
@@ -1469,7 +1467,6 @@ x:1
 (x after setting:)3
 EVAL-while converted (while (not (> x 30)) (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline)) to: 
 (begin (define while-block (lambda () (if (not (> x 30)) (begin (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) (while-block)) 'done))) (while-block))
-In proc EVAL-lambda to evaluate: (lambda () (if (not (> x 30)) (begin (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) (while-block)) 'done))
 x:3
 (x after setting:)5
 x:5
@@ -1512,7 +1509,6 @@ x
 )
 EVAL-while converted (while (< x 50) (display x) (newline) (set! x (+ x 3))) to: 
 (begin (define while-block (lambda () (if (< x 50) (begin (display x) (newline) (set! x (+ x 3)) (while-block)) 'done))) (while-block))
-In proc EVAL-lambda to evaluate: (lambda () (if (< x 50) (begin (display x) (newline) (set! x (+ x 3)) (while-block)) 'done))
 31
 34
 37
@@ -1538,7 +1534,6 @@ x
 )
 EVAL-while converted (while (< x 50) (display x) (newline) (set! x (+ x 3))) to: 
 (begin (define while-block (lambda () (if (< x 50) (begin (display x) (newline) (set! x (+ x 3)) (while-block)) 'done))) (while-block))
-In proc EVAL-lambda to evaluate: (lambda () (if (< x 50) (begin (display x) (newline) (set! x (+ x 3)) (while-block)) 'done))
 31
 34
 37
@@ -1552,7 +1547,6 @@ In proc EVAL-lambda to evaluate: (lambda () (if (< x 50) (begin (display x) (new
 (define (inc val)
     (+ val 1)
 )
-In proc EVAL-lambda to evaluate: (lambda (val) (+ val 1))
 
 [Metacircular Evaluator Output] >>> ok
 [Metacircular Evaluator Input] >>>
@@ -1561,12 +1555,10 @@ In proc EVAL-lambda to evaluate: (lambda (val) (+ val 1))
 [Metacircular Evaluator Output] >>> 2002
 [Metacircular Evaluator Input] >>>
 (define (square x) (* x x))
-In proc EVAL-lambda to evaluate: (lambda (x) (* x x))
 
 [Metacircular Evaluator Output] >>> ok
 [Metacircular Evaluator Input] >>>
 (define (cube x) (* (square x) x))
-In proc EVAL-lambda to evaluate: (lambda (x) (* (square x) x))
 
 [Metacircular Evaluator Output] >>> ok
 [Metacircular Evaluator Input] >>>
@@ -1574,7 +1566,6 @@ In proc EVAL-lambda to evaluate: (lambda (x) (* (square x) x))
 In proc EVAL-let to evaluate: (let ((f (square 4))) (+ (cube f) (* 2 f)))
 Converted (let ((f (square 4))) (+ (cube f) (* 2 f))) to: 
 ((lambda (f) (+ (cube f) (* 2 f))) (square 4))
-In proc EVAL-lambda to evaluate: (lambda (f) (+ (cube f) (* 2 f)))
 
 [Metacircular Evaluator Output] >>> 4128
 [Metacircular Evaluator Input] >>>
@@ -1582,7 +1573,6 @@ In proc EVAL-lambda to evaluate: (lambda (f) (+ (cube f) (* 2 f)))
 In proc EVAL-let to evaluate: (let ((a 10) (b 20) (c 30) (d 45)) (* a b c d))
 Converted (let ((a 10) (b 20) (c 30) (d 45)) (* a b c d)) to: 
 ((lambda (a b c d) (* a b c d)) 10 20 30 45)
-In proc EVAL-lambda to evaluate: (lambda (a b c d) (* a b c d))
 
 [Metacircular Evaluator Output] >>> 270000
 [Metacircular Evaluator Input] >>>
@@ -1591,15 +1581,12 @@ In proc EVAL-let* to evaluate: (let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (* x z))
 In proc EVAL-let to evaluate: (let ((x 3)) (let ((y (+ x 2))) (let ((z (+ x y 5))) (* x z))))
 Converted (let ((x 3)) (let ((y (+ x 2))) (let ((z (+ x y 5))) (* x z)))) to: 
 ((lambda (x) (let ((y (+ x 2))) (let ((z (+ x y 5))) (* x z)))) 3)
-In proc EVAL-lambda to evaluate: (lambda (x) (let ((y (+ x 2))) (let ((z (+ x y 5))) (* x z))))
 In proc EVAL-let to evaluate: (let ((y (+ x 2))) (let ((z (+ x y 5))) (* x z)))
 Converted (let ((y (+ x 2))) (let ((z (+ x y 5))) (* x z))) to: 
 ((lambda (y) (let ((z (+ x y 5))) (* x z))) (+ x 2))
-In proc EVAL-lambda to evaluate: (lambda (y) (let ((z (+ x y 5))) (* x z)))
 In proc EVAL-let to evaluate: (let ((z (+ x y 5))) (* x z))
 Converted (let ((z (+ x y 5))) (* x z)) to: 
 ((lambda (z) (* x z)) (+ x y 5))
-In proc EVAL-lambda to evaluate: (lambda (z) (* x z))
 
 [Metacircular Evaluator Output] >>> 39
 [Metacircular Evaluator Input] >>>
