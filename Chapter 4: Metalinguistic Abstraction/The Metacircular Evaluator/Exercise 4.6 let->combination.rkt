@@ -505,15 +505,16 @@
 
 (define primitive-procedures
 	(list
-		(list 'car car)
-		(list 'cdr cdr)
-		(list 'cadr cadr)
-		(list 'cons cons)
-		(list 'not not)
-		(list 'eq? eq?)
-		(list 'null? null?)
-		(list 'display display)
 		(list 'assoc assoc)
+		(list 'car car)
+		(list 'cadr cadr)
+		(list 'cdr cdr)
+		(list 'cons cons)
+		(list 'display display)
+		(list 'displayln displayln)
+		(list 'eq? eq?)
+		(list 'not not)
+		(list 'null? null?)
 		(list '> >)
 		(list '< <)
 		(list '= =)
@@ -852,10 +853,12 @@
 
 (define letexp3 '(let ((a 10) (b 20) (c 30) (d 45)) (* a b c d)))
 
+(define letexp4 '(let ((a 10) (b 20) (c 30) (d 45)) (displayln 'Multiplying) (* a b c d)))
+
 ; Test Results
 
-Welcome to DrRacket, version 6.11 [3m].
-Language: racket, with debugging; memory limit: 4096 MB.
+Welcome to DrRacket, version 8.1 [cs].
+Language: racket, with debugging; memory limit: 128 MB.
 > (let->combination letexp1)
 '((lambda (frame) (scan (frame-variables frame) (frame-values frame))) (first-frame env))
 > (let->combination letexp2)
@@ -872,6 +875,8 @@ Language: racket, with debugging; memory limit: 4096 MB.
   (cdr clauses))
 > (let->combination letexp3)
 '((lambda (a b c d) (* a b c d)) 10 20 30 45)
+> (let->combination letexp4)
+'((lambda (a b c d) (displayln 'Multiplying) (* a b c d)) 10 20 30 45)
 > (driver-loop)
 
 
@@ -880,6 +885,24 @@ Language: racket, with debugging; memory limit: 4096 MB.
 In proc EVAL-let to execute: (let ((a 10) (b 20) (c 30) (d 45)) (* a b c d))
 Type not found: (lambda (a b c d) (* a b c d))
 In proc EVAL-lambda to execute: (lambda (a b c d) (* a b c d))
+Type not found: *
+In proc lookup-variable-value to execute: #<procedure:exp>
+In proc lookup-variable-value to execute: #<procedure:exp>
+In proc lookup-variable-value to execute: #<procedure:exp>
+In proc lookup-variable-value to execute: #<procedure:exp>
+In proc lookup-variable-value to execute: #<procedure:exp>
+
+;;; EVAL value:
+270000
+
+;;; EVAL input:
+(let ((a 10) (b 20) (c 30) (d 45)) (displayln 'Multiplying) (* a b c d))
+In proc EVAL-let to execute: (let ((a 10) (b 20) (c 30) (d 45)) (displayln 'Multiplying) (* a b c d))
+Type not found: (lambda (a b c d) (displayln 'Multiplying) (* a b c d))
+In proc EVAL-lambda to execute: (lambda (a b c d) (displayln 'Multiplying) (* a b c d))
+Type not found: displayln
+In proc lookup-variable-value to execute: #<procedure:exp>
+Multiplying
 Type not found: *
 In proc lookup-variable-value to execute: #<procedure:exp>
 In proc lookup-variable-value to execute: #<procedure:exp>
