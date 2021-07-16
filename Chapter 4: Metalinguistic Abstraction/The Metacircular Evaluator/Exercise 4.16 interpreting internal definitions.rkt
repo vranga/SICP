@@ -274,9 +274,7 @@
 		(error "No expressions in lambda body" expression)
 		(make-procedure
 			(lambda-parameters expression)
-			(scan-out-defines
-				(lambda-body expression)
-			)
+			(lambda-body expression)
 			env
 		)
 	)
@@ -347,12 +345,14 @@
 )
 
 (define (make-procedure parameters body env)
-	(displayln "Making procedure with: ")
-	(displayln "Parameters:")
-	(displayln parameters)
-	(displayln "Body:")
-	(displayln body)
-	(list 'procedure parameters body env)
+	(let ((transformed-body (scan-out-defines body)))
+		(displayln "Making procedure with: ")
+		(displayln "Parameters:")
+		(displayln parameters)
+		(displayln "Body:")
+		(displayln transformed-body)
+		(list 'procedure parameters transformed-body env)
+	)
 )
 
 ; let Expressions
@@ -1505,17 +1505,17 @@ Language: racket, with debugging; memory limit: 128 MB.
 quit
 'Done
 > (define L1 '(lambda (a b) (displayln 'Entered-F1) (* a b)))
-> (define L2 '(lambda (b) (* b b)))
 > (lambda-parameters L1)
 '(a b)
-> (lambda-parameters L2)
-'(b)
-> (lambda-body L2)
-'((* b b))
 > (lambda-body L1)
 '((displayln 'Entered-F1) (* a b))
 > (scan-out-defines (lambda-body L1))
 '((displayln 'Entered-F1) (* a b))
+> (define L2 '(lambda (b) (* b b)))
+> (lambda-parameters L2)
+'(b)
+> (lambda-body L2)
+'((* b b))
 > (scan-out-defines (lambda-body L2))
 '((* b b))
 > (define L3 '(lambda (a b c d) (define e 3) (define f 4) (displayln 'Entered-F1) (define g 5) (* a b c d e f g h) (define h 6)))
@@ -1547,12 +1547,7 @@ Var-bindings:
 ((e '*unassigned*) (f '*unassigned*) (g '*unassigned*) (h '*unassigned*))
 Body:
 ((set! e 3) (set! f 4) (set! g 5) (* a b c d e f g h) (set! h 6))
-'((let ((e '*unassigned*) (f '*unassigned*) (g '*unassigned*) (h '*unassigned*))
-    (set! e 3)
-    (set! f 4)
-    (set! g 5)
-    (* a b c d e f g h)
-    (set! h 6)))
+'((let ((e '*unassigned*) (f '*unassigned*) (g '*unassigned*) (h '*unassigned*)) (set! e 3) (set! f 4) (set! g 5) (* a b c d e f g h) (set! h 6)))
 > (define L5 '(lambda (b) (define e 3) (* b e)))
 > (lambda-parameters L5)
 '(b)
@@ -1832,5 +1827,27 @@ Body:
 Failed to evaluate: e
 
 [Metacircular Evaluator Output] >>> Assigned value to: e
+[Metacircular Evaluator Input] >>>
+((lambda (a b c d) (define e 3) (define f 4) (displayln 'Entered-F1) (define g 5) (* a b c d e f g h) (define h 6)) 3 5 7 4)
+Making let expression with: 
+Var-bindings:
+((e '*unassigned*) (f '*unassigned*) (g '*unassigned*) (h '*unassigned*))
+Body:
+((set! e 3) (set! f 4) (displayln 'Entered-F1) (set! g 5) (* a b c d e f g h) (set! h 6))
+Making procedure with: 
+Parameters:
+(a b c d)
+Body:
+((let ((e '*unassigned*) (f '*unassigned*) (g '*unassigned*) (h '*unassigned*)) (set! e 3) (set! f 4) (displayln 'Entered-F1) (set! g 5) (* a b c d e f g h) (set! h 6)))
+Making procedure with: 
+Parameters:
+(e f g h)
+Body:
+((set! e 3) (set! f 4) (displayln 'Entered-F1) (set! g 5) (* a b c d e f g h) (set! h 6))
+Entered-F1
+Failed to evaluate: h
+Failed to evaluate: (* a b c d e f g h)
+
+[Metacircular Evaluator Output] >>> Assigned value to: h
 [Metacircular Evaluator Input] >>>
 .
