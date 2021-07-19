@@ -189,7 +189,7 @@
 			((eq? var (name-in-binding (first-binding frame)))
 				; The first binding contains this variable. We can either null it out
 				; or physically remove it. I choose to null it out.
-				(set-mcar! (make-binding null null))
+				(set-mcar! frame (make-binding null null))
 			)
 			((null? (rest-bindings frame))
 				; First binding does not contain this variable and we have reached the
@@ -359,7 +359,7 @@
 (define (let? expression) (tagged-list? expression 'let))
 (define (named-let? expression)
 	(if (let? expression)
-		(if (and (not (null? (cdddr expression))) (symbol? (cdr expression)))
+		(if (and (not (null? (cdddr expression))) (symbol? (cadr expression)))
 			true
 			false
 		)
@@ -1398,11 +1398,17 @@
 (define (driver-loop)
 	(prompt-for-input input-prompt)
 	(let ((input (read)))
+		(display "Starting to evaluate: ")
+		(displayln (~a input))
 		(if (eq? input 'quit)
 			'Done
 			(let ((output (EVAL input the-global-environment)))
 				(announce-output output-prompt)
 				(user-print output)
+				(newline)
+				(display "Finished evaluating: ")
+				(displayln (~a input))
+				(displayln "++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
 				(driver-loop)
 			)
 		)
@@ -1503,27 +1509,311 @@ Language: racket, with debugging; memory limit: 128 MB.
 
 [Metacircular Evaluator Input] >>>
 quit
+Starting to evaluate: quit
 'Done
-> (define L1 '(lambda (a b) (displayln 'Entered-F1) (* a b)))
-> (lambda-parameters L1)
+> (define cond1
+	'(cond
+		((eq? a b) (proc1 a))
+		((> x y) (display x))
+		(else
+			(display (+ x y))
+		)
+	)
+)
+
+(define cond2
+	'(cond
+		((eq? a b) (proc1 a))
+		((> x y) (display x))
+		((assoc 'b '((a 1) (b 2))) => cadr)
+		(else
+			(display (+ x y))
+		)
+	)
+)
+
+(cond->if cond1)
+(cond->if cond2)
+
+(define letexp1
+	'(let ((frame (first-frame env)))
+		(scan
+			(frame-variables frame)
+			(frame-values frame)
+		)
+	)
+)
+
+(define letexp2
+	'(let ((first (car clauses)) (rest (cdr clauses)))
+		(if (cond-else-clause? first)
+			(if (null? rest)
+				(sequence->exp (cond-actions first))
+				(error "ELSE clause isn't last -- COND->IF" clauses)
+			)
+			(if (special-cond-clause-syntax? first)
+				; <handle the <test> => <recipient> syntax>
+				(make-if
+					(list 'not (list 'eq? (cond-predicate first) 'false))
+					(list (recipient-proc first) (cond-predicate first))
+					(expand-clauses rest)
+				)
+				(make-if
+					(cond-predicate first)
+					(sequence->exp (cond-actions first))
+					(expand-clauses rest)
+				)
+			)
+		)
+	)
+)
+
+(define letexp3 '(let ((a 10) (b 20) (c 30) (d 45)) (* a b c d)))
+
+(define letexp4 '(let ((a 10) (b 20) (c 30) (d 45)) (displayln 'Multiplying) (* a b c d)))
+
+(define letexp5
+	'(let ((f (square 4)))
+		(+
+			(cube f)
+			(* 2 f)
+		)
+	)
+)
+
+(let->combination letexp1)
+(let->combination letexp2)
+(let->combination letexp3)
+(let->combination letexp4)
+(let->combination letexp5)
+
+(define letstar1
+	'(let* ((x 3) (y (+ x 2)) (z (+ x y 5)))
+		(* x z)
+	 )
+)
+
+(define letstar2
+	'(let* ((x 3) (y (+ x 2)) (z (+ x y 5)))
+		(displayln 'In-letstar2)
+		(* x z)
+	 )
+)
+
+(define letstarnested
+	'(let* ((x 3) (y (+ x 2)) (z (+ x y 5)))
+		(let* ((x 3) (y (+ x 2)) (z (+ x y 5)))
+			(displayln 'In-letstar2)
+			(* x z)
+	 	)
+	 )
+)
+
+(define name-let-exp
+	'(let fib-iter ((a 1) (b 0) (count n))
+		(if (= count 0)
+			b
+			(fib-iter (+ a b) a (- count 1))
+		)
+	)
+)
+
+letstar1
+(make-let* (let*-var-bindings letstar1) (let*-body letstar1))
+letstar2
+(make-let* (let*-var-bindings letstar2) (let*-body letstar2))
+letstarnested
+(make-let* (let*-var-bindings letstarnested) (let*-body letstarnested))
+(let*->nested-lets letstar1)
+(let*->nested-lets letstar2)
+(let*->nested-lets letstarnested)
+
+(define L1 '(lambda (a b) (displayln 'Entered-F1) (* a b)))
+(lambda-parameters L1)
+(lambda-body L1)
+(scan-out-defines (lambda-body L1))
+(define L2 '(lambda (b) (* b b)))
+(lambda-parameters L2)
+(lambda-body L2)
+(scan-out-defines (lambda-body L2))
+(define L3 '(lambda (a b c d) (define e 3) (define f 4) (displayln 'Entered-F1) (define g 5) (* a b c d e f g h) (define h 6)))
+(lambda-parameters L3)
+(lambda-body L3)
+(scan-out-defines (lambda-body L3))
+(define L4 '(lambda (a b) (define e 3) (define f 4) (define g 5) (* a b c d e f g h) (define h 6)))
+(lambda-parameters L4)
+(lambda-body L4)
+(scan-out-defines (lambda-body L4))
+(define L5 '(lambda (b) (define e 3) (* b e)))
+(lambda-parameters L5)
+(lambda-body L5)
+(scan-out-defines (lambda-body L5))
+(define L6 '(lambda () (define e 3) e))
+(lambda-parameters L6)
+(lambda-body L6)
+(scan-out-defines (lambda-body L6))
+(define L7 '(lambda () (display 'Hi)))
+(lambda-parameters L7)
+(lambda-body L7)
+(scan-out-defines (lambda-body L7))
+Making if expression with: 
+Predicate:
+(> x y)
+Consequent
+(display x)
+Alternative
+(display (+ x y))
+Making if expression with: 
+Predicate:
+(eq? a b)
+Consequent
+(proc1 a)
+Alternative
+(if (> x y) (display x) (display (+ x y)))
+'(if (eq? a b) (proc1 a) (if (> x y) (display x) (display (+ x y))))
+Making if expression with: 
+Predicate:
+(not (eq? (assoc 'b '((a 1) (b 2))) false))
+Consequent
+(cadr (assoc 'b '((a 1) (b 2))))
+Alternative
+(display (+ x y))
+Making if expression with: 
+Predicate:
+(> x y)
+Consequent
+(display x)
+Alternative
+(if (not (eq? (assoc 'b '((a 1) (b 2))) false)) (cadr (assoc 'b '((a 1) (b 2)))) (display (+ x y)))
+Making if expression with: 
+Predicate:
+(eq? a b)
+Consequent
+(proc1 a)
+Alternative
+(if (> x y) (display x) (if (not (eq? (assoc 'b '((a 1) (b 2))) false)) (cadr (assoc 'b '((a 1) (b 2)))) (display (+ x y))))
+'(if (eq? a b)
+   (proc1 a)
+   (if (> x y) (display x) (if (not (eq? (assoc 'b '((a 1) (b 2))) false)) (cadr (assoc 'b '((a 1) (b 2)))) (display (+ x y)))))
+'((lambda (frame) (scan (frame-variables frame) (frame-values frame))) (first-frame env))
+'((lambda (first rest)
+    (if (cond-else-clause? first)
+      (if (null? rest) (sequence->exp (cond-actions first)) (error "ELSE clause isn't last -- COND->IF" clauses))
+      (if (special-cond-clause-syntax? first)
+        (make-if (list 'not (list 'eq? (cond-predicate first) 'false)) (list (recipient-proc first) (cond-predicate first)) (expand-clauses rest))
+        (make-if (cond-predicate first) (sequence->exp (cond-actions first)) (expand-clauses rest)))))
+  (car clauses)
+  (cdr clauses))
+'((lambda (a b c d) (* a b c d)) 10 20 30 45)
+'((lambda (a b c d) (displayln 'Multiplying) (* a b c d)) 10 20 30 45)
+'((lambda (f) (+ (cube f) (* 2 f))) (square 4))
+'(let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (* x z))
+Making let* expression with: 
+Var-bindings:
+((x 3) (y (+ x 2)) (z (+ x y 5)))
+Body:
+((* x z))
+'(let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (* x z))
+'(let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (displayln 'In-letstar2) (* x z))
+Making let* expression with: 
+Var-bindings:
+((x 3) (y (+ x 2)) (z (+ x y 5)))
+Body:
+((displayln 'In-letstar2) (* x z))
+'(let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (displayln 'In-letstar2) (* x z))
+'(let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (displayln 'In-letstar2) (* x z)))
+Making let* expression with: 
+Var-bindings:
+((x 3) (y (+ x 2)) (z (+ x y 5)))
+Body:
+((let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (displayln 'In-letstar2) (* x z)))
+'(let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (displayln 'In-letstar2) (* x z)))
+Making let* expression with: 
+Var-bindings:
+((y (+ x 2)) (z (+ x y 5)))
+Body:
+((* x z))
+Making let* expression with: 
+Var-bindings:
+((z (+ x y 5)))
+Body:
+((* x z))
+Making let expression with: 
+Var-bindings:
+((z (+ x y 5)))
+Body:
+((* x z))
+Making let expression with: 
+Var-bindings:
+((y (+ x 2)))
+Body:
+((let ((z (+ x y 5))) (* x z)))
+Making let expression with: 
+Var-bindings:
+((x 3))
+Body:
+((let ((y (+ x 2))) (let ((z (+ x y 5))) (* x z))))
+'(let ((x 3)) (let ((y (+ x 2))) (let ((z (+ x y 5))) (* x z))))
+Making let* expression with: 
+Var-bindings:
+((y (+ x 2)) (z (+ x y 5)))
+Body:
+((displayln 'In-letstar2) (* x z))
+Making let* expression with: 
+Var-bindings:
+((z (+ x y 5)))
+Body:
+((displayln 'In-letstar2) (* x z))
+Making let expression with: 
+Var-bindings:
+((z (+ x y 5)))
+Body:
+((displayln 'In-letstar2) (* x z))
+Making let expression with: 
+Var-bindings:
+((y (+ x 2)))
+Body:
+((let ((z (+ x y 5))) (displayln 'In-letstar2) (* x z)))
+Making let expression with: 
+Var-bindings:
+((x 3))
+Body:
+((let ((y (+ x 2))) (let ((z (+ x y 5))) (displayln 'In-letstar2) (* x z))))
+'(let ((x 3)) (let ((y (+ x 2))) (let ((z (+ x y 5))) (displayln 'In-letstar2) (* x z))))
+Making let* expression with: 
+Var-bindings:
+((y (+ x 2)) (z (+ x y 5)))
+Body:
+((let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (displayln 'In-letstar2) (* x z)))
+Making let* expression with: 
+Var-bindings:
+((z (+ x y 5)))
+Body:
+((let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (displayln 'In-letstar2) (* x z)))
+Making let expression with: 
+Var-bindings:
+((z (+ x y 5)))
+Body:
+((let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (displayln 'In-letstar2) (* x z)))
+Making let expression with: 
+Var-bindings:
+((y (+ x 2)))
+Body:
+((let ((z (+ x y 5))) (let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (displayln 'In-letstar2) (* x z))))
+Making let expression with: 
+Var-bindings:
+((x 3))
+Body:
+((let ((y (+ x 2))) (let ((z (+ x y 5))) (let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (displayln 'In-letstar2) (* x z)))))
+'(let ((x 3)) (let ((y (+ x 2))) (let ((z (+ x y 5))) (let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (displayln 'In-letstar2) (* x z)))))
 '(a b)
-> (lambda-body L1)
 '((displayln 'Entered-F1) (* a b))
-> (scan-out-defines (lambda-body L1))
 '((displayln 'Entered-F1) (* a b))
-> (define L2 '(lambda (b) (* b b)))
-> (lambda-parameters L2)
 '(b)
-> (lambda-body L2)
 '((* b b))
-> (scan-out-defines (lambda-body L2))
 '((* b b))
-> (define L3 '(lambda (a b c d) (define e 3) (define f 4) (displayln 'Entered-F1) (define g 5) (* a b c d e f g h) (define h 6)))
-> (lambda-parameters L3)
 '(a b c d)
-> (lambda-body L3)
 '((define e 3) (define f 4) (displayln 'Entered-F1) (define g 5) (* a b c d e f g h) (define h 6))
-> (scan-out-defines (lambda-body L3))
 Making let expression with: 
 Var-bindings:
 ((e '*unassigned*) (f '*unassigned*) (g '*unassigned*) (h '*unassigned*))
@@ -1536,53 +1826,2573 @@ Body:
     (set! g 5)
     (* a b c d e f g h)
     (set! h 6)))
-> (define L4 '(lambda (a b) (define e 3) (define f 4) (define g 5) (* a b c d e f g h) (define h 6)))
-> (lambda-parameters L4)
 '(a b)
-> (lambda-body L4)
 '((define e 3) (define f 4) (define g 5) (* a b c d e f g h) (define h 6))
-> (scan-out-defines (lambda-body L4))
 Making let expression with: 
 Var-bindings:
 ((e '*unassigned*) (f '*unassigned*) (g '*unassigned*) (h '*unassigned*))
 Body:
 ((set! e 3) (set! f 4) (set! g 5) (* a b c d e f g h) (set! h 6))
 '((let ((e '*unassigned*) (f '*unassigned*) (g '*unassigned*) (h '*unassigned*)) (set! e 3) (set! f 4) (set! g 5) (* a b c d e f g h) (set! h 6)))
-> (define L5 '(lambda (b) (define e 3) (* b e)))
-> (lambda-parameters L5)
 '(b)
-> (lambda-body L5)
 '((define e 3) (* b e))
-> (scan-out-defines (lambda-body L5))
 Making let expression with: 
 Var-bindings:
 ((e '*unassigned*))
 Body:
 ((set! e 3) (* b e))
 '((let ((e '*unassigned*)) (set! e 3) (* b e)))
-> (define L6 '(lambda () (define e 3) e))
-> (lambda-parameters L6)
 '()
-> (lambda-body L6)
 '((define e 3) e)
-> (scan-out-defines (lambda-body L6))
 Making let expression with: 
 Var-bindings:
 ((e '*unassigned*))
 Body:
 ((set! e 3) e)
 '((let ((e '*unassigned*)) (set! e 3) e))
-> (define L7 '(lambda () (display 'Hi)))
-> (lambda-parameters L7)
 '()
-> (lambda-body L7)
 '((display 'Hi))
-> (scan-out-defines (lambda-body L7))
 '((display 'Hi))
 > (driver-loop)
 
 [Metacircular Evaluator Input] >>>
+(define (square x) (* x x))
+(define (cube x) (* (square x) x))
+
+(define a '(set! x 5))
+(define d '(define y 6))
+(define i '(if true (display 'yes) (display 'no)))
+(define v 'mud)
+(define l '(lambda (x) (display "Executing lambda proc")))
+(define b '(begin (display '(hi there))))
+(define c '(cond ((> 5 2) (display 'yes)) (else (display 'no))))
+
+(cond ((assoc 'b '((a 1) (b 2))) => cadr)
+      (else false))
+(cond ((assoc 'a '((a 1) (b 2))) => cadr)
+      (else false))
+(cond ((assoc 'c '((a 1) (b 2))) => cadr)
+      (else false))
+
+(and (> 10 6) (< 9 19) (= 5 5.0))
+(and (> 10 6) (< 9 19) (= 6 5.0))
+(and (> 10 6) (< 29 19) (= 5 5.0))
+(and (> 10 6) (< 9 19) (= 15 5.0))
+(and (> 10 6) (< 9 19) (= 5 5.0) (< 20 22))
+
+(and (< 10 6) (< 9 19) (= 5 5.0))
+(and (< 10 16) (> 9 -9) (= 5 5.0))
+
+(or (> 10 6) (< 9 19) (= 5 5.0))
+(or (> 10 6) (< 9 19) (= 5 35.0))
+(or (> 10 6) (> 9 19) (= 5 5.0))
+(or (> 10 6) (< 79 19) (= 55 5.0))
+(or (> 10 56) (< 9 19) (= 5 5.0))
+(or (> 10 60) (< 9 19) (= 55 5.0))
+(or (> 10 60) (< 90 19) (= 5 5.0))
+(or (> 10 600) (< 90 19) (= 65 5.0))
+
+(or (< 10 6) (< 79 19) (= 55 5.0))
+(or (= 10 6) (> 9 19) (< 5 5.0) (> 1 2) (> 20 19))
+
+(define y 8)
+y
+(set! y 89)
+y
+(define (append x y) (if (null? x) y (cons (car x) (append (cdr x) y))))
+(append '(q w e r t y) '(z x c v b n))
+
+(let ((a 10) (b 20) (c 30) (d 45)) (displayln 'Multiplying) (* a b c d))
+
+(let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (displayln 'Multiplying...) (* x z))
+(let* ((x 3) (y (+ x 2)) (z (+ x y 5)))
+	(displayln 'Multiplying...)
+	(* 
+		(let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (displayln 'Multiplying...) (* x z))
+		z
+	)
+)
+
+(let ((f (square 4))) (+ (cube f) (* 2 f)))
+(let ((a 10) (b 20) (c 30) (d 45)) (* a b c d))
+(let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (* x z))
+(define (fib n) (let fib-iter ((a 1) (b 0) (count n)) (if (= count 0) b (fib-iter (+ a b) a (- count 1)))))
+(fib 0)
+(fib 1)
+(fib 2)
+(fib 3)
+(fib 4)
+(fib 5)
+(fib 6)
+(fib 7)
+(fib 10)
+(fib 20)
+(fib 25)
+(fib 28)
+(fib 30)
+(fib 50)
+
+(define x 365)
+
+(do
+    (display 'x:)
+    (display x)
+    (newline)
+    (set! x (+ x 2))
+    (display '(x after setting:))
+    (display x)
+    (newline)
+    while (< x 10)
+)
+
+(define (inc val)
+    (+ val 1)
+)
+
+(inc 100)
+
+(for (i 1) (i 40) inc
+    (display i)
+    (newline)
+)
+
+(do
+    (display 'x:)
+    (display x)
+    (newline)
+    (set! x (+ x 2))
+    (display '(x after setting:))
+    (display x)
+    (newline)
+    until (> x 30)
+)
+x
+
+(while (< x 50)
+    (display x)
+    (newline)
+    (set! x (+ x 3))
+)
+
+(define x -10)
+x
+(do
+    (display 'x:)
+    (display x)
+    (newline)
+    (set! x (+ x 2))
+    (display '(x after setting:))
+    (display x)
+    (newline)
+    while (< x 10)
+)
+(inc 100)
+(for (i 1) (i 40) inc
+    (display i)
+    (newline)
+)
+x
+(define x 1)
+x
+(do
+    (display 'x:)
+    (display x)
+    (newline)
+    (set! x (+ x 2))
+    (display '(x after setting:))
+    (display x)
+    (newline)
+    until (> x 30)
+)
+x
+(while (< x 50)
+    (display x)
+    (newline)
+    (set! x (+ x 3))
+)
+(define x 31)
+x
+(while (< x 50)
+    (display x)
+    (newline)
+    (set! x (+ x 3))
+)
+(inc 2001)
+(let ((f (square 4))) (+ (cube f) (* 2 f)))
+(let ((a 10) (b 20) (c 30) (d 45)) (* a b c d))
+(let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (* x z))
+
+(define x 11)
+x
+(define (P1 x) (display "Passed in value: ") (displayln x) (set! x 31) (display "Modified value: ") (displayln x))
+(P1 x)
+x
+(set! x (+ x 3))
+x
+(P1 22)
+x
+(P1 x)
+x
+
+(define x 3)
+x
+(make-unbound! x)
+x
+(define x 4)
+(define y 5)
+x
+y
+(make-unbound! y)
+y
+x
+(make-unbound! x)
+x
+(define x 7)
+(define y 8)
+(define z 9)
+x
+y
+z
+(make-unbound! y)
+y
+x
+z
+
+(define (F1 x)
+
+	(define (F2 x)
+		(define (F3 x)
+			(define (F4 x)
+				(define (inc x)
+					(displayln "Entered proc (inc x)")
+					(display "Passed in value of x: ")
+					(displayln x)
+					(set! x (* x 3))
+					(display "Value of x after tripling: ")
+					(displayln x)
+					(+ x 1)
+				)
+				(displayln "Entered proc (F4 x)")
+				(display "Passed in value of x: ")
+				(displayln x)
+				(set! x (* x 3))
+				(display "Value of x after tripling: ")
+				(displayln x)
+				(set! x (inc x))
+				(display "Value of x after incrementing: ")
+				(displayln x)
+				(displayln "Exiting proc (F4 x)")
+			)
+			(displayln "Entered proc (F3 x)")
+			(display "Passed in value of x: ")
+			(displayln x)
+			(set! x (* x 3))
+			(display "Value of x after tripling: ")
+			(displayln x)
+			(F4 x)
+			(display "Value of x after calling (F4 x): ")
+			(displayln x)
+			(displayln "Exiting proc (F3 x)")
+		)
+		(displayln "Entered proc (F2 x)")
+		(display "Passed in value of x: ")
+		(displayln x)
+		(set! x (* x 3))
+		(display "Value of x after tripling: ")
+		(displayln x)
+		(F3 x)
+		(display "Value of x after calling (F3 x): ")
+		(displayln x)
+		(displayln "Exiting proc (F2 x)")
+	)
+
+	(displayln "Entered proc (F1 x)")
+	(display "Passed in value of x: ")
+	(displayln x)
+	(set! x (* x 3))
+	(display "Value of x after tripling: ")
+	(displayln x)
+	(F2 x)
+	(display "Value of x after calling (F2 x): ")
+	(displayln x)
+	(displayln "Exiting proc (F1 x)")
+)
+
+(F1 x)
+x
+(define x 24)
+(define y 84)
+x
+y
+(make-unbound! x)
+x
+y
+z
+(make-unbound! y)
+y
+(define x 2000)
+x
+(define (F1)
+	(define x 100)
+	(display "Value of x inside F1: ")
+	(displayln x)
+	(make-unbound! x)
+	(display "Displaying x after unbounding it: ")
+	(displayln x)
+)
+(F1)
+x
+(make-unbound! x)
+x
+
+(define (map proc items)
+	(if (null? items)
+		'()
+		(cons (proc (car items)) (map proc (cdr items)))
+	)
+)
+(map abs (list -10 2.5 -11.6 17))
+(map abs (list -10 2.5 -11.6 0.0 17 -.5 -8 -35 96))
+(map inc (list -10 2.5 -11.6 0.0 17 -.5 -8 -35 96))
+
 (define (F1 a b) (displayln 'Entered-F1) (* a b))
+(F1 8 4)
+(define (F2 a) (define b 9) (define c 11) (* a b c))
+(F2 6)
+((lambda (a b) (displayln 'Entered-F1) (* a b)) 8 5)
+((lambda (b) (* b b)) 16)
+((lambda (a b) (define e 3) (define f 4) (define g 5) (define h 6) (* a b e f g h)) 2 7)
+((lambda (b) (define e 3) (* b e)) 85)
+((lambda () (define e 3) e))
+((lambda () (display 'Hi)))
+(let ((a 1) (b 3) (c 5)) (* a b c))
+(let ((b 3) (c 5)) (* b c))
+(let ((b 3)) (* b b))
+((lambda () (set! b 3) (* b b)))
+((lambda () (define b 3) (* b b)))
+(define (F2 a) (define b 9) (define c 11) (* a b c))
+(F2 456)
+((lambda (a b c d) (define e 3) (define f 4) (displayln 'Entered-F1) (define g 5) (define h 6) (* a b c d e f g h)) 3 5 7 4)
+((lambda () e (define e 3)))
+((lambda (a b c d) (define e 3) (define f 4) (displayln 'Entered-F1) (define g 5) (* a b c d e f g h) (define h 6)) 3 5 7 4)
+Starting to evaluate: (define (square x) (* x x))
+Making procedure with: 
+Parameters:
+(x)
+Body:
+((* x x))
+
+[Metacircular Evaluator Output] >>> Defined the variable: square
+Finished evaluating: (define (square x) (* x x))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (define (cube x) (* (square x) x))
+Making procedure with: 
+Parameters:
+(x)
+Body:
+((* (square x) x))
+
+[Metacircular Evaluator Output] >>> Defined the variable: cube
+Finished evaluating: (define (cube x) (* (square x) x))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (define a (quote (set! x 5)))
+
+[Metacircular Evaluator Output] >>> Defined the variable: a
+Finished evaluating: (define a (quote (set! x 5)))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (define d (quote (define y 6)))
+
+[Metacircular Evaluator Output] >>> Defined the variable: d
+Finished evaluating: (define d (quote (define y 6)))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (define i (quote (if true (display (quote yes)) (display (quote no)))))
+
+[Metacircular Evaluator Output] >>> Defined the variable: i
+Finished evaluating: (define i (quote (if true (display (quote yes)) (display (quote no)))))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (define v (quote mud))
+
+[Metacircular Evaluator Output] >>> Defined the variable: v
+Finished evaluating: (define v (quote mud))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (define l (quote (lambda (x) (display Executing lambda proc))))
+
+[Metacircular Evaluator Output] >>> Defined the variable: l
+Finished evaluating: (define l (quote (lambda (x) (display Executing lambda proc))))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (define b (quote (begin (display (quote (hi there))))))
+
+[Metacircular Evaluator Output] >>> Defined the variable: b
+Finished evaluating: (define b (quote (begin (display (quote (hi there))))))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (define c (quote (cond ((> 5 2) (display (quote yes))) (else (display (quote no))))))
+
+[Metacircular Evaluator Output] >>> Defined the variable: c
+Finished evaluating: (define c (quote (cond ((> 5 2) (display (quote yes))) (else (display (quote no))))))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (cond ((assoc (quote b) (quote ((a 1) (b 2)))) => cadr) (else false))
+In proc EVAL-cond to evaluate: (cond ((assoc 'b '((a 1) (b 2))) => cadr) (else false))
+Making if expression with: 
+Predicate:
+(not (eq? (assoc 'b '((a 1) (b 2))) false))
+Consequent
+(cadr (assoc 'b '((a 1) (b 2))))
+Alternative
+false
+
+[Metacircular Evaluator Output] >>> 2
+Finished evaluating: (cond ((assoc (quote b) (quote ((a 1) (b 2)))) => cadr) (else false))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (cond ((assoc (quote a) (quote ((a 1) (b 2)))) => cadr) (else false))
+In proc EVAL-cond to evaluate: (cond ((assoc 'a '((a 1) (b 2))) => cadr) (else false))
+Making if expression with: 
+Predicate:
+(not (eq? (assoc 'a '((a 1) (b 2))) false))
+Consequent
+(cadr (assoc 'a '((a 1) (b 2))))
+Alternative
+false
+
+[Metacircular Evaluator Output] >>> 1
+Finished evaluating: (cond ((assoc (quote a) (quote ((a 1) (b 2)))) => cadr) (else false))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (cond ((assoc (quote c) (quote ((a 1) (b 2)))) => cadr) (else false))
+In proc EVAL-cond to evaluate: (cond ((assoc 'c '((a 1) (b 2))) => cadr) (else false))
+Making if expression with: 
+Predicate:
+(not (eq? (assoc 'c '((a 1) (b 2))) false))
+Consequent
+(cadr (assoc 'c '((a 1) (b 2))))
+Alternative
+false
+
+[Metacircular Evaluator Output] >>> #f
+Finished evaluating: (cond ((assoc (quote c) (quote ((a 1) (b 2)))) => cadr) (else false))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (and (> 10 6) (< 9 19) (= 5 5.0))
+In proc EVAL-and to evaluate: (and (> 10 6) (< 9 19) (= 5 5.0))
+Making if expression with: 
+Predicate:
+(= 5 5.0)
+Consequent
+true
+Alternative
+false
+Making if expression with: 
+Predicate:
+(< 9 19)
+Consequent
+(if (= 5 5.0) true false)
+Alternative
+false
+Making if expression with: 
+Predicate:
+(> 10 6)
+Consequent
+(if (< 9 19) (if (= 5 5.0) true false) false)
+Alternative
+false
+
+[Metacircular Evaluator Output] >>> #t
+Finished evaluating: (and (> 10 6) (< 9 19) (= 5 5.0))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (and (> 10 6) (< 9 19) (= 6 5.0))
+In proc EVAL-and to evaluate: (and (> 10 6) (< 9 19) (= 6 5.0))
+Making if expression with: 
+Predicate:
+(= 6 5.0)
+Consequent
+true
+Alternative
+false
+Making if expression with: 
+Predicate:
+(< 9 19)
+Consequent
+(if (= 6 5.0) true false)
+Alternative
+false
+Making if expression with: 
+Predicate:
+(> 10 6)
+Consequent
+(if (< 9 19) (if (= 6 5.0) true false) false)
+Alternative
+false
+
+[Metacircular Evaluator Output] >>> #f
+Finished evaluating: (and (> 10 6) (< 9 19) (= 6 5.0))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (and (> 10 6) (< 29 19) (= 5 5.0))
+In proc EVAL-and to evaluate: (and (> 10 6) (< 29 19) (= 5 5.0))
+Making if expression with: 
+Predicate:
+(= 5 5.0)
+Consequent
+true
+Alternative
+false
+Making if expression with: 
+Predicate:
+(< 29 19)
+Consequent
+(if (= 5 5.0) true false)
+Alternative
+false
+Making if expression with: 
+Predicate:
+(> 10 6)
+Consequent
+(if (< 29 19) (if (= 5 5.0) true false) false)
+Alternative
+false
+
+[Metacircular Evaluator Output] >>> #f
+Finished evaluating: (and (> 10 6) (< 29 19) (= 5 5.0))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (and (> 10 6) (< 9 19) (= 15 5.0))
+In proc EVAL-and to evaluate: (and (> 10 6) (< 9 19) (= 15 5.0))
+Making if expression with: 
+Predicate:
+(= 15 5.0)
+Consequent
+true
+Alternative
+false
+Making if expression with: 
+Predicate:
+(< 9 19)
+Consequent
+(if (= 15 5.0) true false)
+Alternative
+false
+Making if expression with: 
+Predicate:
+(> 10 6)
+Consequent
+(if (< 9 19) (if (= 15 5.0) true false) false)
+Alternative
+false
+
+[Metacircular Evaluator Output] >>> #f
+Finished evaluating: (and (> 10 6) (< 9 19) (= 15 5.0))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (and (> 10 6) (< 9 19) (= 5 5.0) (< 20 22))
+In proc EVAL-and to evaluate: (and (> 10 6) (< 9 19) (= 5 5.0) (< 20 22))
+Making if expression with: 
+Predicate:
+(< 20 22)
+Consequent
+true
+Alternative
+false
+Making if expression with: 
+Predicate:
+(= 5 5.0)
+Consequent
+(if (< 20 22) true false)
+Alternative
+false
+Making if expression with: 
+Predicate:
+(< 9 19)
+Consequent
+(if (= 5 5.0) (if (< 20 22) true false) false)
+Alternative
+false
+Making if expression with: 
+Predicate:
+(> 10 6)
+Consequent
+(if (< 9 19) (if (= 5 5.0) (if (< 20 22) true false) false) false)
+Alternative
+false
+
+[Metacircular Evaluator Output] >>> #t
+Finished evaluating: (and (> 10 6) (< 9 19) (= 5 5.0) (< 20 22))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (and (< 10 6) (< 9 19) (= 5 5.0))
+In proc EVAL-and to evaluate: (and (< 10 6) (< 9 19) (= 5 5.0))
+Making if expression with: 
+Predicate:
+(= 5 5.0)
+Consequent
+true
+Alternative
+false
+Making if expression with: 
+Predicate:
+(< 9 19)
+Consequent
+(if (= 5 5.0) true false)
+Alternative
+false
+Making if expression with: 
+Predicate:
+(< 10 6)
+Consequent
+(if (< 9 19) (if (= 5 5.0) true false) false)
+Alternative
+false
+
+[Metacircular Evaluator Output] >>> #f
+Finished evaluating: (and (< 10 6) (< 9 19) (= 5 5.0))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (and (< 10 16) (> 9 -9) (= 5 5.0))
+In proc EVAL-and to evaluate: (and (< 10 16) (> 9 -9) (= 5 5.0))
+Making if expression with: 
+Predicate:
+(= 5 5.0)
+Consequent
+true
+Alternative
+false
+Making if expression with: 
+Predicate:
+(> 9 -9)
+Consequent
+(if (= 5 5.0) true false)
+Alternative
+false
+Making if expression with: 
+Predicate:
+(< 10 16)
+Consequent
+(if (> 9 -9) (if (= 5 5.0) true false) false)
+Alternative
+false
+
+[Metacircular Evaluator Output] >>> #t
+Finished evaluating: (and (< 10 16) (> 9 -9) (= 5 5.0))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (or (> 10 6) (< 9 19) (= 5 5.0))
+In proc EVAL-or to evaluate: (or (> 10 6) (< 9 19) (= 5 5.0))
+Making if expression with: 
+Predicate:
+(= 5 5.0)
+Consequent
+true
+Alternative
+false
+Making if expression with: 
+Predicate:
+(< 9 19)
+Consequent
+true
+Alternative
+(if (= 5 5.0) true false)
+Making if expression with: 
+Predicate:
+(> 10 6)
+Consequent
+true
+Alternative
+(if (< 9 19) true (if (= 5 5.0) true false))
+
+[Metacircular Evaluator Output] >>> #t
+Finished evaluating: (or (> 10 6) (< 9 19) (= 5 5.0))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (or (> 10 6) (< 9 19) (= 5 35.0))
+In proc EVAL-or to evaluate: (or (> 10 6) (< 9 19) (= 5 35.0))
+Making if expression with: 
+Predicate:
+(= 5 35.0)
+Consequent
+true
+Alternative
+false
+Making if expression with: 
+Predicate:
+(< 9 19)
+Consequent
+true
+Alternative
+(if (= 5 35.0) true false)
+Making if expression with: 
+Predicate:
+(> 10 6)
+Consequent
+true
+Alternative
+(if (< 9 19) true (if (= 5 35.0) true false))
+
+[Metacircular Evaluator Output] >>> #t
+Finished evaluating: (or (> 10 6) (< 9 19) (= 5 35.0))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (or (> 10 6) (> 9 19) (= 5 5.0))
+In proc EVAL-or to evaluate: (or (> 10 6) (> 9 19) (= 5 5.0))
+Making if expression with: 
+Predicate:
+(= 5 5.0)
+Consequent
+true
+Alternative
+false
+Making if expression with: 
+Predicate:
+(> 9 19)
+Consequent
+true
+Alternative
+(if (= 5 5.0) true false)
+Making if expression with: 
+Predicate:
+(> 10 6)
+Consequent
+true
+Alternative
+(if (> 9 19) true (if (= 5 5.0) true false))
+
+[Metacircular Evaluator Output] >>> #t
+Finished evaluating: (or (> 10 6) (> 9 19) (= 5 5.0))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (or (> 10 6) (< 79 19) (= 55 5.0))
+In proc EVAL-or to evaluate: (or (> 10 6) (< 79 19) (= 55 5.0))
+Making if expression with: 
+Predicate:
+(= 55 5.0)
+Consequent
+true
+Alternative
+false
+Making if expression with: 
+Predicate:
+(< 79 19)
+Consequent
+true
+Alternative
+(if (= 55 5.0) true false)
+Making if expression with: 
+Predicate:
+(> 10 6)
+Consequent
+true
+Alternative
+(if (< 79 19) true (if (= 55 5.0) true false))
+
+[Metacircular Evaluator Output] >>> #t
+Finished evaluating: (or (> 10 6) (< 79 19) (= 55 5.0))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (or (> 10 56) (< 9 19) (= 5 5.0))
+In proc EVAL-or to evaluate: (or (> 10 56) (< 9 19) (= 5 5.0))
+Making if expression with: 
+Predicate:
+(= 5 5.0)
+Consequent
+true
+Alternative
+false
+Making if expression with: 
+Predicate:
+(< 9 19)
+Consequent
+true
+Alternative
+(if (= 5 5.0) true false)
+Making if expression with: 
+Predicate:
+(> 10 56)
+Consequent
+true
+Alternative
+(if (< 9 19) true (if (= 5 5.0) true false))
+
+[Metacircular Evaluator Output] >>> #t
+Finished evaluating: (or (> 10 56) (< 9 19) (= 5 5.0))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (or (> 10 60) (< 9 19) (= 55 5.0))
+In proc EVAL-or to evaluate: (or (> 10 60) (< 9 19) (= 55 5.0))
+Making if expression with: 
+Predicate:
+(= 55 5.0)
+Consequent
+true
+Alternative
+false
+Making if expression with: 
+Predicate:
+(< 9 19)
+Consequent
+true
+Alternative
+(if (= 55 5.0) true false)
+Making if expression with: 
+Predicate:
+(> 10 60)
+Consequent
+true
+Alternative
+(if (< 9 19) true (if (= 55 5.0) true false))
+
+[Metacircular Evaluator Output] >>> #t
+Finished evaluating: (or (> 10 60) (< 9 19) (= 55 5.0))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (or (> 10 60) (< 90 19) (= 5 5.0))
+In proc EVAL-or to evaluate: (or (> 10 60) (< 90 19) (= 5 5.0))
+Making if expression with: 
+Predicate:
+(= 5 5.0)
+Consequent
+true
+Alternative
+false
+Making if expression with: 
+Predicate:
+(< 90 19)
+Consequent
+true
+Alternative
+(if (= 5 5.0) true false)
+Making if expression with: 
+Predicate:
+(> 10 60)
+Consequent
+true
+Alternative
+(if (< 90 19) true (if (= 5 5.0) true false))
+
+[Metacircular Evaluator Output] >>> #t
+Finished evaluating: (or (> 10 60) (< 90 19) (= 5 5.0))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (or (> 10 600) (< 90 19) (= 65 5.0))
+In proc EVAL-or to evaluate: (or (> 10 600) (< 90 19) (= 65 5.0))
+Making if expression with: 
+Predicate:
+(= 65 5.0)
+Consequent
+true
+Alternative
+false
+Making if expression with: 
+Predicate:
+(< 90 19)
+Consequent
+true
+Alternative
+(if (= 65 5.0) true false)
+Making if expression with: 
+Predicate:
+(> 10 600)
+Consequent
+true
+Alternative
+(if (< 90 19) true (if (= 65 5.0) true false))
+
+[Metacircular Evaluator Output] >>> #f
+Finished evaluating: (or (> 10 600) (< 90 19) (= 65 5.0))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (or (< 10 6) (< 79 19) (= 55 5.0))
+In proc EVAL-or to evaluate: (or (< 10 6) (< 79 19) (= 55 5.0))
+Making if expression with: 
+Predicate:
+(= 55 5.0)
+Consequent
+true
+Alternative
+false
+Making if expression with: 
+Predicate:
+(< 79 19)
+Consequent
+true
+Alternative
+(if (= 55 5.0) true false)
+Making if expression with: 
+Predicate:
+(< 10 6)
+Consequent
+true
+Alternative
+(if (< 79 19) true (if (= 55 5.0) true false))
+
+[Metacircular Evaluator Output] >>> #f
+Finished evaluating: (or (< 10 6) (< 79 19) (= 55 5.0))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (or (= 10 6) (> 9 19) (< 5 5.0) (> 1 2) (> 20 19))
+In proc EVAL-or to evaluate: (or (= 10 6) (> 9 19) (< 5 5.0) (> 1 2) (> 20 19))
+Making if expression with: 
+Predicate:
+(> 20 19)
+Consequent
+true
+Alternative
+false
+Making if expression with: 
+Predicate:
+(> 1 2)
+Consequent
+true
+Alternative
+(if (> 20 19) true false)
+Making if expression with: 
+Predicate:
+(< 5 5.0)
+Consequent
+true
+Alternative
+(if (> 1 2) true (if (> 20 19) true false))
+Making if expression with: 
+Predicate:
+(> 9 19)
+Consequent
+true
+Alternative
+(if (< 5 5.0) true (if (> 1 2) true (if (> 20 19) true false)))
+Making if expression with: 
+Predicate:
+(= 10 6)
+Consequent
+true
+Alternative
+(if (> 9 19) true (if (< 5 5.0) true (if (> 1 2) true (if (> 20 19) true false))))
+
+[Metacircular Evaluator Output] >>> #t
+Finished evaluating: (or (= 10 6) (> 9 19) (< 5 5.0) (> 1 2) (> 20 19))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (define y 8)
+
+[Metacircular Evaluator Output] >>> Defined the variable: y
+Finished evaluating: (define y 8)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: y
+
+[Metacircular Evaluator Output] >>> 8
+Finished evaluating: y
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (set! y 89)
+
+[Metacircular Evaluator Output] >>> Assigned value to: y
+Finished evaluating: (set! y 89)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: y
+
+[Metacircular Evaluator Output] >>> 89
+Finished evaluating: y
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (define (append x y) (if (null? x) y (cons (car x) (append (cdr x) y))))
+Making procedure with: 
+Parameters:
+(x y)
+Body:
+((if (null? x) y (cons (car x) (append (cdr x) y))))
+
+[Metacircular Evaluator Output] >>> Defined the variable: append
+Finished evaluating: (define (append x y) (if (null? x) y (cons (car x) (append (cdr x) y))))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (append (quote (q w e r t y)) (quote (z x c v b n)))
+
+[Metacircular Evaluator Output] >>> (q w e r t y z x c v b n)
+Finished evaluating: (append (quote (q w e r t y)) (quote (z x c v b n)))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (let ((a 10) (b 20) (c 30) (d 45)) (displayln (quote Multiplying)) (* a b c d))
+Making procedure with: 
+Parameters:
+(a b c d)
+Body:
+((displayln 'Multiplying) (* a b c d))
+Multiplying
+
+[Metacircular Evaluator Output] >>> 270000
+Finished evaluating: (let ((a 10) (b 20) (c 30) (d 45)) (displayln (quote Multiplying)) (* a b c d))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (displayln (quote Multiplying...)) (* x z))
+In proc EVAL-let* to evaluate: (let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (displayln 'Multiplying...) (* x z))
+Making let* expression with: 
+Var-bindings:
+((y (+ x 2)) (z (+ x y 5)))
+Body:
+((displayln 'Multiplying...) (* x z))
+Making let* expression with: 
+Var-bindings:
+((z (+ x y 5)))
+Body:
+((displayln 'Multiplying...) (* x z))
+Making let expression with: 
+Var-bindings:
+((z (+ x y 5)))
+Body:
+((displayln 'Multiplying...) (* x z))
+Making let expression with: 
+Var-bindings:
+((y (+ x 2)))
+Body:
+((let ((z (+ x y 5))) (displayln 'Multiplying...) (* x z)))
+Making let expression with: 
+Var-bindings:
+((x 3))
+Body:
+((let ((y (+ x 2))) (let ((z (+ x y 5))) (displayln 'Multiplying...) (* x z))))
+Making procedure with: 
+Parameters:
+(x)
+Body:
+((let ((y (+ x 2))) (let ((z (+ x y 5))) (displayln 'Multiplying...) (* x z))))
+Making procedure with: 
+Parameters:
+(y)
+Body:
+((let ((z (+ x y 5))) (displayln 'Multiplying...) (* x z)))
+Making procedure with: 
+Parameters:
+(z)
+Body:
+((displayln 'Multiplying...) (* x z))
+Multiplying...
+
+[Metacircular Evaluator Output] >>> 39
+Finished evaluating: (let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (displayln (quote Multiplying...)) (* x z))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (displayln (quote Multiplying...)) (* (let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (displayln (quote Multiplying...)) (* x z)) z))
+In proc EVAL-let* to evaluate: (let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (displayln 'Multiplying...) (* (let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (displayln 'Multiplying...) (* x z)) z))
+Making let* expression with: 
+Var-bindings:
+((y (+ x 2)) (z (+ x y 5)))
+Body:
+((displayln 'Multiplying...) (* (let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (displayln 'Multiplying...) (* x z)) z))
+Making let* expression with: 
+Var-bindings:
+((z (+ x y 5)))
+Body:
+((displayln 'Multiplying...) (* (let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (displayln 'Multiplying...) (* x z)) z))
+Making let expression with: 
+Var-bindings:
+((z (+ x y 5)))
+Body:
+((displayln 'Multiplying...) (* (let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (displayln 'Multiplying...) (* x z)) z))
+Making let expression with: 
+Var-bindings:
+((y (+ x 2)))
+Body:
+((let ((z (+ x y 5))) (displayln 'Multiplying...) (* (let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (displayln 'Multiplying...) (* x z)) z)))
+Making let expression with: 
+Var-bindings:
+((x 3))
+Body:
+((let ((y (+ x 2))) (let ((z (+ x y 5))) (displayln 'Multiplying...) (* (let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (displayln 'Multiplying...) (* x z)) z))))
+Making procedure with: 
+Parameters:
+(x)
+Body:
+((let ((y (+ x 2))) (let ((z (+ x y 5))) (displayln 'Multiplying...) (* (let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (displayln 'Multiplying...) (* x z)) z))))
+Making procedure with: 
+Parameters:
+(y)
+Body:
+((let ((z (+ x y 5))) (displayln 'Multiplying...) (* (let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (displayln 'Multiplying...) (* x z)) z)))
+Making procedure with: 
+Parameters:
+(z)
+Body:
+((displayln 'Multiplying...) (* (let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (displayln 'Multiplying...) (* x z)) z))
+Multiplying...
+In proc EVAL-let* to evaluate: (let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (displayln 'Multiplying...) (* x z))
+Making let* expression with: 
+Var-bindings:
+((y (+ x 2)) (z (+ x y 5)))
+Body:
+((displayln 'Multiplying...) (* x z))
+Making let* expression with: 
+Var-bindings:
+((z (+ x y 5)))
+Body:
+((displayln 'Multiplying...) (* x z))
+Making let expression with: 
+Var-bindings:
+((z (+ x y 5)))
+Body:
+((displayln 'Multiplying...) (* x z))
+Making let expression with: 
+Var-bindings:
+((y (+ x 2)))
+Body:
+((let ((z (+ x y 5))) (displayln 'Multiplying...) (* x z)))
+Making let expression with: 
+Var-bindings:
+((x 3))
+Body:
+((let ((y (+ x 2))) (let ((z (+ x y 5))) (displayln 'Multiplying...) (* x z))))
+Making procedure with: 
+Parameters:
+(x)
+Body:
+((let ((y (+ x 2))) (let ((z (+ x y 5))) (displayln 'Multiplying...) (* x z))))
+Making procedure with: 
+Parameters:
+(y)
+Body:
+((let ((z (+ x y 5))) (displayln 'Multiplying...) (* x z)))
+Making procedure with: 
+Parameters:
+(z)
+Body:
+((displayln 'Multiplying...) (* x z))
+Multiplying...
+
+[Metacircular Evaluator Output] >>> 507
+Finished evaluating: (let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (displayln (quote Multiplying...)) (* (let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (displayln (quote Multiplying...)) (* x z)) z))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (let ((f (square 4))) (+ (cube f) (* 2 f)))
+Making procedure with: 
+Parameters:
+(f)
+Body:
+((+ (cube f) (* 2 f)))
+
+[Metacircular Evaluator Output] >>> 4128
+Finished evaluating: (let ((f (square 4))) (+ (cube f) (* 2 f)))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (let ((a 10) (b 20) (c 30) (d 45)) (* a b c d))
+Making procedure with: 
+Parameters:
+(a b c d)
+Body:
+((* a b c d))
+
+[Metacircular Evaluator Output] >>> 270000
+Finished evaluating: (let ((a 10) (b 20) (c 30) (d 45)) (* a b c d))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (* x z))
+In proc EVAL-let* to evaluate: (let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (* x z))
+Making let* expression with: 
+Var-bindings:
+((y (+ x 2)) (z (+ x y 5)))
+Body:
+((* x z))
+Making let* expression with: 
+Var-bindings:
+((z (+ x y 5)))
+Body:
+((* x z))
+Making let expression with: 
+Var-bindings:
+((z (+ x y 5)))
+Body:
+((* x z))
+Making let expression with: 
+Var-bindings:
+((y (+ x 2)))
+Body:
+((let ((z (+ x y 5))) (* x z)))
+Making let expression with: 
+Var-bindings:
+((x 3))
+Body:
+((let ((y (+ x 2))) (let ((z (+ x y 5))) (* x z))))
+Making procedure with: 
+Parameters:
+(x)
+Body:
+((let ((y (+ x 2))) (let ((z (+ x y 5))) (* x z))))
+Making procedure with: 
+Parameters:
+(y)
+Body:
+((let ((z (+ x y 5))) (* x z)))
+Making procedure with: 
+Parameters:
+(z)
+Body:
+((* x z))
+
+[Metacircular Evaluator Output] >>> 39
+Finished evaluating: (let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (* x z))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (define (fib n) (let fib-iter ((a 1) (b 0) (count n)) (if (= count 0) b (fib-iter (+ a b) a (- count 1)))))
+Making procedure with: 
+Parameters:
+(n)
+Body:
+((let fib-iter ((a 1) (b 0) (count n)) (if (= count 0) b (fib-iter (+ a b) a (- count 1)))))
+
+[Metacircular Evaluator Output] >>> Defined the variable: fib
+Finished evaluating: (define (fib n) (let fib-iter ((a 1) (b 0) (count n)) (if (= count 0) b (fib-iter (+ a b) a (- count 1)))))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (fib 0)
+Making begin expression with sequence: 
+((define fib-iter (lambda (a b count) (if (= count 0) b (fib-iter (+ a b) a (- count 1))))) (fib-iter 1 0 n))
+Making procedure with: 
+Parameters:
+(a b count)
+Body:
+((if (= count 0) b (fib-iter (+ a b) a (- count 1))))
+
+[Metacircular Evaluator Output] >>> 0
+Finished evaluating: (fib 0)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (fib 1)
+Making begin expression with sequence: 
+((define fib-iter (lambda (a b count) (if (= count 0) b (fib-iter (+ a b) a (- count 1))))) (fib-iter 1 0 n))
+Making procedure with: 
+Parameters:
+(a b count)
+Body:
+((if (= count 0) b (fib-iter (+ a b) a (- count 1))))
+
+[Metacircular Evaluator Output] >>> 1
+Finished evaluating: (fib 1)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (fib 2)
+Making begin expression with sequence: 
+((define fib-iter (lambda (a b count) (if (= count 0) b (fib-iter (+ a b) a (- count 1))))) (fib-iter 1 0 n))
+Making procedure with: 
+Parameters:
+(a b count)
+Body:
+((if (= count 0) b (fib-iter (+ a b) a (- count 1))))
+
+[Metacircular Evaluator Output] >>> 1
+Finished evaluating: (fib 2)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (fib 3)
+Making begin expression with sequence: 
+((define fib-iter (lambda (a b count) (if (= count 0) b (fib-iter (+ a b) a (- count 1))))) (fib-iter 1 0 n))
+Making procedure with: 
+Parameters:
+(a b count)
+Body:
+((if (= count 0) b (fib-iter (+ a b) a (- count 1))))
+
+[Metacircular Evaluator Output] >>> 2
+Finished evaluating: (fib 3)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (fib 4)
+Making begin expression with sequence: 
+((define fib-iter (lambda (a b count) (if (= count 0) b (fib-iter (+ a b) a (- count 1))))) (fib-iter 1 0 n))
+Making procedure with: 
+Parameters:
+(a b count)
+Body:
+((if (= count 0) b (fib-iter (+ a b) a (- count 1))))
+
+[Metacircular Evaluator Output] >>> 3
+Finished evaluating: (fib 4)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (fib 5)
+Making begin expression with sequence: 
+((define fib-iter (lambda (a b count) (if (= count 0) b (fib-iter (+ a b) a (- count 1))))) (fib-iter 1 0 n))
+Making procedure with: 
+Parameters:
+(a b count)
+Body:
+((if (= count 0) b (fib-iter (+ a b) a (- count 1))))
+
+[Metacircular Evaluator Output] >>> 5
+Finished evaluating: (fib 5)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (fib 6)
+Making begin expression with sequence: 
+((define fib-iter (lambda (a b count) (if (= count 0) b (fib-iter (+ a b) a (- count 1))))) (fib-iter 1 0 n))
+Making procedure with: 
+Parameters:
+(a b count)
+Body:
+((if (= count 0) b (fib-iter (+ a b) a (- count 1))))
+
+[Metacircular Evaluator Output] >>> 8
+Finished evaluating: (fib 6)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (fib 7)
+Making begin expression with sequence: 
+((define fib-iter (lambda (a b count) (if (= count 0) b (fib-iter (+ a b) a (- count 1))))) (fib-iter 1 0 n))
+Making procedure with: 
+Parameters:
+(a b count)
+Body:
+((if (= count 0) b (fib-iter (+ a b) a (- count 1))))
+
+[Metacircular Evaluator Output] >>> 13
+Finished evaluating: (fib 7)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (fib 10)
+Making begin expression with sequence: 
+((define fib-iter (lambda (a b count) (if (= count 0) b (fib-iter (+ a b) a (- count 1))))) (fib-iter 1 0 n))
+Making procedure with: 
+Parameters:
+(a b count)
+Body:
+((if (= count 0) b (fib-iter (+ a b) a (- count 1))))
+
+[Metacircular Evaluator Output] >>> 55
+Finished evaluating: (fib 10)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (fib 20)
+Making begin expression with sequence: 
+((define fib-iter (lambda (a b count) (if (= count 0) b (fib-iter (+ a b) a (- count 1))))) (fib-iter 1 0 n))
+Making procedure with: 
+Parameters:
+(a b count)
+Body:
+((if (= count 0) b (fib-iter (+ a b) a (- count 1))))
+
+[Metacircular Evaluator Output] >>> 6765
+Finished evaluating: (fib 20)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (fib 25)
+Making begin expression with sequence: 
+((define fib-iter (lambda (a b count) (if (= count 0) b (fib-iter (+ a b) a (- count 1))))) (fib-iter 1 0 n))
+Making procedure with: 
+Parameters:
+(a b count)
+Body:
+((if (= count 0) b (fib-iter (+ a b) a (- count 1))))
+
+[Metacircular Evaluator Output] >>> 75025
+Finished evaluating: (fib 25)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (fib 28)
+Making begin expression with sequence: 
+((define fib-iter (lambda (a b count) (if (= count 0) b (fib-iter (+ a b) a (- count 1))))) (fib-iter 1 0 n))
+Making procedure with: 
+Parameters:
+(a b count)
+Body:
+((if (= count 0) b (fib-iter (+ a b) a (- count 1))))
+
+[Metacircular Evaluator Output] >>> 317811
+Finished evaluating: (fib 28)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (fib 30)
+Making begin expression with sequence: 
+((define fib-iter (lambda (a b count) (if (= count 0) b (fib-iter (+ a b) a (- count 1))))) (fib-iter 1 0 n))
+Making procedure with: 
+Parameters:
+(a b count)
+Body:
+((if (= count 0) b (fib-iter (+ a b) a (- count 1))))
+
+[Metacircular Evaluator Output] >>> 832040
+Finished evaluating: (fib 30)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (fib 50)
+Making begin expression with sequence: 
+((define fib-iter (lambda (a b count) (if (= count 0) b (fib-iter (+ a b) a (- count 1))))) (fib-iter 1 0 n))
+Making procedure with: 
+Parameters:
+(a b count)
+Body:
+((if (= count 0) b (fib-iter (+ a b) a (- count 1))))
+
+[Metacircular Evaluator Output] >>> 12586269025
+Finished evaluating: (fib 50)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (define x 365)
+
+[Metacircular Evaluator Output] >>> Defined the variable: x
+Finished evaluating: (define x 365)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (do (display (quote x:)) (display x) (newline) (set! x (+ x 2)) (display (quote (x after setting:))) (display x) (newline) while (< x 10))
+In proc EVAL-do-while to evaluate: (do (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) while (< x 10))
+Making while expression with: 
+Condition:
+(< x 10)
+Statements:
+((display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline))
+Making begin expression with sequence: 
+((display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) (while (< x 10) (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline)))
+x:365
+(x after setting:)367
+In proc EVAL-while to evaluate: (while (< x 10) (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline))
+Making begin expression with sequence: 
+((display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) (while-block))
+Making if expression with: 
+Predicate:
+(< x 10)
+Consequent
+(begin (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) (while-block))
+Alternative
+'done
+Making begin expression with sequence: 
+((define while-block (lambda () (if (< x 10) (begin (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) (while-block)) 'done))) (while-block))
+Making procedure with: 
+Parameters:
+()
+Body:
+((if (< x 10) (begin (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) (while-block)) 'done))
+
+[Metacircular Evaluator Output] >>> done
+Finished evaluating: (do (display (quote x:)) (display x) (newline) (set! x (+ x 2)) (display (quote (x after setting:))) (display x) (newline) while (< x 10))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (define (inc val) (+ val 1))
+Making procedure with: 
+Parameters:
+(val)
+Body:
+((+ val 1))
+
+[Metacircular Evaluator Output] >>> Defined the variable: inc
+Finished evaluating: (define (inc val) (+ val 1))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (inc 100)
+
+[Metacircular Evaluator Output] >>> 101
+Finished evaluating: (inc 100)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (for (i 1) (i 40) inc (display i) (newline))
+In proc EVAL-for to evaluate: (for (i 1) (i 40) inc (display i) (newline))
+Making begin expression with sequence: 
+((display i) (newline) (set! i (inc i)) (for-block))
+Making if expression with: 
+Predicate:
+(<= i 40)
+Consequent
+(begin (display i) (newline) (set! i (inc i)) (for-block))
+Alternative
+'done
+Making begin expression with sequence: 
+((define i 1) (define for-block (lambda () (if (<= i 40) (begin (display i) (newline) (set! i (inc i)) (for-block)) 'done))) (for-block))
+Making procedure with: 
+Parameters:
+()
+Body:
+((if (<= i 40) (begin (display i) (newline) (set! i (inc i)) (for-block)) 'done))
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+
+[Metacircular Evaluator Output] >>> done
+Finished evaluating: (for (i 1) (i 40) inc (display i) (newline))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (do (display (quote x:)) (display x) (newline) (set! x (+ x 2)) (display (quote (x after setting:))) (display x) (newline) until (> x 30))
+In proc EVAL-do-until to evaluate: (do (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) until (> x 30))
+Making while expression with: 
+Condition:
+(not (> x 30))
+Statements:
+((display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline))
+Making begin expression with sequence: 
+((display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) (while (not (> x 30)) (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline)))
+x:367
+(x after setting:)369
+In proc EVAL-while to evaluate: (while (not (> x 30)) (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline))
+Making begin expression with sequence: 
+((display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) (while-block))
+Making if expression with: 
+Predicate:
+(not (> x 30))
+Consequent
+(begin (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) (while-block))
+Alternative
+'done
+Making begin expression with sequence: 
+((define while-block (lambda () (if (not (> x 30)) (begin (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) (while-block)) 'done))) (while-block))
+Making procedure with: 
+Parameters:
+()
+Body:
+((if (not (> x 30)) (begin (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) (while-block)) 'done))
+
+[Metacircular Evaluator Output] >>> done
+Finished evaluating: (do (display (quote x:)) (display x) (newline) (set! x (+ x 2)) (display (quote (x after setting:))) (display x) (newline) until (> x 30))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: x
+
+[Metacircular Evaluator Output] >>> 369
+Finished evaluating: x
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (while (< x 50) (display x) (newline) (set! x (+ x 3)))
+In proc EVAL-while to evaluate: (while (< x 50) (display x) (newline) (set! x (+ x 3)))
+Making begin expression with sequence: 
+((display x) (newline) (set! x (+ x 3)) (while-block))
+Making if expression with: 
+Predicate:
+(< x 50)
+Consequent
+(begin (display x) (newline) (set! x (+ x 3)) (while-block))
+Alternative
+'done
+Making begin expression with sequence: 
+((define while-block (lambda () (if (< x 50) (begin (display x) (newline) (set! x (+ x 3)) (while-block)) 'done))) (while-block))
+Making procedure with: 
+Parameters:
+()
+Body:
+((if (< x 50) (begin (display x) (newline) (set! x (+ x 3)) (while-block)) 'done))
+
+[Metacircular Evaluator Output] >>> done
+Finished evaluating: (while (< x 50) (display x) (newline) (set! x (+ x 3)))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (define x -10)
+
+[Metacircular Evaluator Output] >>> Defined the variable: x
+Finished evaluating: (define x -10)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: x
+
+[Metacircular Evaluator Output] >>> -10
+Finished evaluating: x
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (do (display (quote x:)) (display x) (newline) (set! x (+ x 2)) (display (quote (x after setting:))) (display x) (newline) while (< x 10))
+In proc EVAL-do-while to evaluate: (do (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) while (< x 10))
+Making while expression with: 
+Condition:
+(< x 10)
+Statements:
+((display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline))
+Making begin expression with sequence: 
+((display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) (while (< x 10) (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline)))
+x:-10
+(x after setting:)-8
+In proc EVAL-while to evaluate: (while (< x 10) (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline))
+Making begin expression with sequence: 
+((display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) (while-block))
+Making if expression with: 
+Predicate:
+(< x 10)
+Consequent
+(begin (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) (while-block))
+Alternative
+'done
+Making begin expression with sequence: 
+((define while-block (lambda () (if (< x 10) (begin (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) (while-block)) 'done))) (while-block))
+Making procedure with: 
+Parameters:
+()
+Body:
+((if (< x 10) (begin (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) (while-block)) 'done))
+x:-8
+(x after setting:)-6
+x:-6
+(x after setting:)-4
+x:-4
+(x after setting:)-2
+x:-2
+(x after setting:)0
+x:0
+(x after setting:)2
+x:2
+(x after setting:)4
+x:4
+(x after setting:)6
+x:6
+(x after setting:)8
+x:8
+(x after setting:)10
+
+[Metacircular Evaluator Output] >>> done
+Finished evaluating: (do (display (quote x:)) (display x) (newline) (set! x (+ x 2)) (display (quote (x after setting:))) (display x) (newline) while (< x 10))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (inc 100)
+
+[Metacircular Evaluator Output] >>> 101
+Finished evaluating: (inc 100)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (for (i 1) (i 40) inc (display i) (newline))
+In proc EVAL-for to evaluate: (for (i 1) (i 40) inc (display i) (newline))
+Making begin expression with sequence: 
+((display i) (newline) (set! i (inc i)) (for-block))
+Making if expression with: 
+Predicate:
+(<= i 40)
+Consequent
+(begin (display i) (newline) (set! i (inc i)) (for-block))
+Alternative
+'done
+Making begin expression with sequence: 
+((define i 1) (define for-block (lambda () (if (<= i 40) (begin (display i) (newline) (set! i (inc i)) (for-block)) 'done))) (for-block))
+Making procedure with: 
+Parameters:
+()
+Body:
+((if (<= i 40) (begin (display i) (newline) (set! i (inc i)) (for-block)) 'done))
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+
+[Metacircular Evaluator Output] >>> done
+Finished evaluating: (for (i 1) (i 40) inc (display i) (newline))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: x
+
+[Metacircular Evaluator Output] >>> 10
+Finished evaluating: x
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (define x 1)
+
+[Metacircular Evaluator Output] >>> Defined the variable: x
+Finished evaluating: (define x 1)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: x
+
+[Metacircular Evaluator Output] >>> 1
+Finished evaluating: x
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (do (display (quote x:)) (display x) (newline) (set! x (+ x 2)) (display (quote (x after setting:))) (display x) (newline) until (> x 30))
+In proc EVAL-do-until to evaluate: (do (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) until (> x 30))
+Making while expression with: 
+Condition:
+(not (> x 30))
+Statements:
+((display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline))
+Making begin expression with sequence: 
+((display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) (while (not (> x 30)) (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline)))
+x:1
+(x after setting:)3
+In proc EVAL-while to evaluate: (while (not (> x 30)) (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline))
+Making begin expression with sequence: 
+((display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) (while-block))
+Making if expression with: 
+Predicate:
+(not (> x 30))
+Consequent
+(begin (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) (while-block))
+Alternative
+'done
+Making begin expression with sequence: 
+((define while-block (lambda () (if (not (> x 30)) (begin (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) (while-block)) 'done))) (while-block))
+Making procedure with: 
+Parameters:
+()
+Body:
+((if (not (> x 30)) (begin (display 'x:) (display x) (newline) (set! x (+ x 2)) (display '(x after setting:)) (display x) (newline) (while-block)) 'done))
+x:3
+(x after setting:)5
+x:5
+(x after setting:)7
+x:7
+(x after setting:)9
+x:9
+(x after setting:)11
+x:11
+(x after setting:)13
+x:13
+(x after setting:)15
+x:15
+(x after setting:)17
+x:17
+(x after setting:)19
+x:19
+(x after setting:)21
+x:21
+(x after setting:)23
+x:23
+(x after setting:)25
+x:25
+(x after setting:)27
+x:27
+(x after setting:)29
+x:29
+(x after setting:)31
+
+[Metacircular Evaluator Output] >>> done
+Finished evaluating: (do (display (quote x:)) (display x) (newline) (set! x (+ x 2)) (display (quote (x after setting:))) (display x) (newline) until (> x 30))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: x
+
+[Metacircular Evaluator Output] >>> 31
+Finished evaluating: x
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (while (< x 50) (display x) (newline) (set! x (+ x 3)))
+In proc EVAL-while to evaluate: (while (< x 50) (display x) (newline) (set! x (+ x 3)))
+Making begin expression with sequence: 
+((display x) (newline) (set! x (+ x 3)) (while-block))
+Making if expression with: 
+Predicate:
+(< x 50)
+Consequent
+(begin (display x) (newline) (set! x (+ x 3)) (while-block))
+Alternative
+'done
+Making begin expression with sequence: 
+((define while-block (lambda () (if (< x 50) (begin (display x) (newline) (set! x (+ x 3)) (while-block)) 'done))) (while-block))
+Making procedure with: 
+Parameters:
+()
+Body:
+((if (< x 50) (begin (display x) (newline) (set! x (+ x 3)) (while-block)) 'done))
+31
+34
+37
+40
+43
+46
+49
+
+[Metacircular Evaluator Output] >>> done
+Finished evaluating: (while (< x 50) (display x) (newline) (set! x (+ x 3)))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (define x 31)
+
+[Metacircular Evaluator Output] >>> Defined the variable: x
+Finished evaluating: (define x 31)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: x
+
+[Metacircular Evaluator Output] >>> 31
+Finished evaluating: x
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (while (< x 50) (display x) (newline) (set! x (+ x 3)))
+In proc EVAL-while to evaluate: (while (< x 50) (display x) (newline) (set! x (+ x 3)))
+Making begin expression with sequence: 
+((display x) (newline) (set! x (+ x 3)) (while-block))
+Making if expression with: 
+Predicate:
+(< x 50)
+Consequent
+(begin (display x) (newline) (set! x (+ x 3)) (while-block))
+Alternative
+'done
+Making begin expression with sequence: 
+((define while-block (lambda () (if (< x 50) (begin (display x) (newline) (set! x (+ x 3)) (while-block)) 'done))) (while-block))
+Making procedure with: 
+Parameters:
+()
+Body:
+((if (< x 50) (begin (display x) (newline) (set! x (+ x 3)) (while-block)) 'done))
+31
+34
+37
+40
+43
+46
+49
+
+[Metacircular Evaluator Output] >>> done
+Finished evaluating: (while (< x 50) (display x) (newline) (set! x (+ x 3)))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (inc 2001)
+
+[Metacircular Evaluator Output] >>> 2002
+Finished evaluating: (inc 2001)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (let ((f (square 4))) (+ (cube f) (* 2 f)))
+Making procedure with: 
+Parameters:
+(f)
+Body:
+((+ (cube f) (* 2 f)))
+
+[Metacircular Evaluator Output] >>> 4128
+Finished evaluating: (let ((f (square 4))) (+ (cube f) (* 2 f)))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (let ((a 10) (b 20) (c 30) (d 45)) (* a b c d))
+Making procedure with: 
+Parameters:
+(a b c d)
+Body:
+((* a b c d))
+
+[Metacircular Evaluator Output] >>> 270000
+Finished evaluating: (let ((a 10) (b 20) (c 30) (d 45)) (* a b c d))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (* x z))
+In proc EVAL-let* to evaluate: (let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (* x z))
+Making let* expression with: 
+Var-bindings:
+((y (+ x 2)) (z (+ x y 5)))
+Body:
+((* x z))
+Making let* expression with: 
+Var-bindings:
+((z (+ x y 5)))
+Body:
+((* x z))
+Making let expression with: 
+Var-bindings:
+((z (+ x y 5)))
+Body:
+((* x z))
+Making let expression with: 
+Var-bindings:
+((y (+ x 2)))
+Body:
+((let ((z (+ x y 5))) (* x z)))
+Making let expression with: 
+Var-bindings:
+((x 3))
+Body:
+((let ((y (+ x 2))) (let ((z (+ x y 5))) (* x z))))
+Making procedure with: 
+Parameters:
+(x)
+Body:
+((let ((y (+ x 2))) (let ((z (+ x y 5))) (* x z))))
+Making procedure with: 
+Parameters:
+(y)
+Body:
+((let ((z (+ x y 5))) (* x z)))
+Making procedure with: 
+Parameters:
+(z)
+Body:
+((* x z))
+
+[Metacircular Evaluator Output] >>> 39
+Finished evaluating: (let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (* x z))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (define x 11)
+
+[Metacircular Evaluator Output] >>> Defined the variable: x
+Finished evaluating: (define x 11)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: x
+
+[Metacircular Evaluator Output] >>> 11
+Finished evaluating: x
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (define (P1 x) (display Passed in value: ) (displayln x) (set! x 31) (display Modified value: ) (displayln x))
+Making procedure with: 
+Parameters:
+(x)
+Body:
+((display Passed in value: ) (displayln x) (set! x 31) (display Modified value: ) (displayln x))
+
+[Metacircular Evaluator Output] >>> Defined the variable: P1
+Finished evaluating: (define (P1 x) (display Passed in value: ) (displayln x) (set! x 31) (display Modified value: ) (displayln x))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (P1 x)
+Passed in value: 11
+Modified value: 31
+
+[Metacircular Evaluator Output] >>> #<void>
+Finished evaluating: (P1 x)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: x
+
+[Metacircular Evaluator Output] >>> 11
+Finished evaluating: x
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (set! x (+ x 3))
+
+[Metacircular Evaluator Output] >>> Assigned value to: x
+Finished evaluating: (set! x (+ x 3))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: x
+
+[Metacircular Evaluator Output] >>> 14
+Finished evaluating: x
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (P1 22)
+Passed in value: 22
+Modified value: 31
+
+[Metacircular Evaluator Output] >>> #<void>
+Finished evaluating: (P1 22)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: x
+
+[Metacircular Evaluator Output] >>> 14
+Finished evaluating: x
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (P1 x)
+Passed in value: 14
+Modified value: 31
+
+[Metacircular Evaluator Output] >>> #<void>
+Finished evaluating: (P1 x)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: x
+
+[Metacircular Evaluator Output] >>> 14
+Finished evaluating: x
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (define x 3)
+
+[Metacircular Evaluator Output] >>> Defined the variable: x
+Finished evaluating: (define x 3)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: x
+
+[Metacircular Evaluator Output] >>> 3
+Finished evaluating: x
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (make-unbound! x)
+
+[Metacircular Evaluator Output] >>> Un-defined the variable: x
+Finished evaluating: (make-unbound! x)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: x
+Failed to evaluate: x
+
+[Metacircular Evaluator Output] >>> Unbound variable 'x
+Finished evaluating: x
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (define x 4)
+
+[Metacircular Evaluator Output] >>> Defined the variable: x
+Finished evaluating: (define x 4)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (define y 5)
+
+[Metacircular Evaluator Output] >>> Defined the variable: y
+Finished evaluating: (define y 5)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: x
+
+[Metacircular Evaluator Output] >>> 4
+Finished evaluating: x
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: y
+
+[Metacircular Evaluator Output] >>> 5
+Finished evaluating: y
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (make-unbound! y)
+
+[Metacircular Evaluator Output] >>> Un-defined the variable: y
+Finished evaluating: (make-unbound! y)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: y
+Failed to evaluate: y
+
+[Metacircular Evaluator Output] >>> Unbound variable 'y
+Finished evaluating: y
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: x
+
+[Metacircular Evaluator Output] >>> 4
+Finished evaluating: x
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (make-unbound! x)
+
+[Metacircular Evaluator Output] >>> Un-defined the variable: x
+Finished evaluating: (make-unbound! x)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: x
+Failed to evaluate: x
+
+[Metacircular Evaluator Output] >>> Unbound variable 'x
+Finished evaluating: x
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (define x 7)
+
+[Metacircular Evaluator Output] >>> Defined the variable: x
+Finished evaluating: (define x 7)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (define y 8)
+
+[Metacircular Evaluator Output] >>> Defined the variable: y
+Finished evaluating: (define y 8)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (define z 9)
+
+[Metacircular Evaluator Output] >>> Defined the variable: z
+Finished evaluating: (define z 9)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: x
+
+[Metacircular Evaluator Output] >>> 7
+Finished evaluating: x
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: y
+
+[Metacircular Evaluator Output] >>> 8
+Finished evaluating: y
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: z
+
+[Metacircular Evaluator Output] >>> 9
+Finished evaluating: z
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (make-unbound! y)
+
+[Metacircular Evaluator Output] >>> Un-defined the variable: y
+Finished evaluating: (make-unbound! y)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: y
+Failed to evaluate: y
+
+[Metacircular Evaluator Output] >>> Unbound variable 'y
+Finished evaluating: y
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: x
+
+[Metacircular Evaluator Output] >>> 7
+Finished evaluating: x
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: z
+
+[Metacircular Evaluator Output] >>> 9
+Finished evaluating: z
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (define (F1 x) (define (F2 x) (define (F3 x) (define (F4 x) (define (inc x) (displayln Entered proc (inc x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (+ x 1)) (displayln Entered proc (F4 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (set! x (inc x)) (display Value of x after incrementing: ) (displayln x) (displayln Exiting proc (F4 x))) (displayln Entered proc (F3 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F4 x) (display Value of x after calling (F4 x): ) (displayln x) (displayln Exiting proc (F3 x))) (displayln Entered proc (F2 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F3 x) (display Value of x after calling (F3 x): ) (displayln x) (displayln Exiting proc (F2 x))) (displayln Entered proc (F1 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F2 x) (display Value of x after calling (F2 x): ) (displayln x) (displayln Exiting proc (F1 x)))
+Making let expression with: 
+Var-bindings:
+((F2 '*unassigned*))
+Body:
+((set! F2 (lambda (x) (define (F3 x) (define (F4 x) (define (inc x) (displayln Entered proc (inc x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (+ x 1)) (displayln Entered proc (F4 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (set! x (inc x)) (display Value of x after incrementing: ) (displayln x) (displayln Exiting proc (F4 x))) (displayln Entered proc (F3 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F4 x) (display Value of x after calling (F4 x): ) (displayln x) (displayln Exiting proc (F3 x))) (displayln Entered proc (F2 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F3 x) (display Value of x after calling (F3 x): ) (displayln x) (displayln Exiting proc (F2 x)))) (displayln Entered proc (F1 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F2 x) (display Value of x after calling (F2 x): ) (displayln x) (displayln Exiting proc (F1 x)))
+Making procedure with: 
+Parameters:
+(x)
+Body:
+((let ((F2 '*unassigned*)) (set! F2 (lambda (x) (define (F3 x) (define (F4 x) (define (inc x) (displayln Entered proc (inc x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (+ x 1)) (displayln Entered proc (F4 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (set! x (inc x)) (display Value of x after incrementing: ) (displayln x) (displayln Exiting proc (F4 x))) (displayln Entered proc (F3 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F4 x) (display Value of x after calling (F4 x): ) (displayln x) (displayln Exiting proc (F3 x))) (displayln Entered proc (F2 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F3 x) (display Value of x after calling (F3 x): ) (displayln x) (displayln Exiting proc (F2 x)))) (displayln Entered proc (F1 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F2 x) (display Value of x after calling (F2 x): ) (displayln x) (displayln Exiting proc (F1 x))))
+
+[Metacircular Evaluator Output] >>> Defined the variable: F1
+Finished evaluating: (define (F1 x) (define (F2 x) (define (F3 x) (define (F4 x) (define (inc x) (displayln Entered proc (inc x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (+ x 1)) (displayln Entered proc (F4 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (set! x (inc x)) (display Value of x after incrementing: ) (displayln x) (displayln Exiting proc (F4 x))) (displayln Entered proc (F3 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F4 x) (display Value of x after calling (F4 x): ) (displayln x) (displayln Exiting proc (F3 x))) (displayln Entered proc (F2 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F3 x) (display Value of x after calling (F3 x): ) (displayln x) (displayln Exiting proc (F2 x))) (displayln Entered proc (F1 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F2 x) (display Value of x after calling (F2 x): ) (displayln x) (displayln Exiting proc (F1 x)))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (F1 x)
+Making procedure with: 
+Parameters:
+(F2)
+Body:
+((set! F2 (lambda (x) (define (F3 x) (define (F4 x) (define (inc x) (displayln Entered proc (inc x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (+ x 1)) (displayln Entered proc (F4 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (set! x (inc x)) (display Value of x after incrementing: ) (displayln x) (displayln Exiting proc (F4 x))) (displayln Entered proc (F3 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F4 x) (display Value of x after calling (F4 x): ) (displayln x) (displayln Exiting proc (F3 x))) (displayln Entered proc (F2 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F3 x) (display Value of x after calling (F3 x): ) (displayln x) (displayln Exiting proc (F2 x)))) (displayln Entered proc (F1 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F2 x) (display Value of x after calling (F2 x): ) (displayln x) (displayln Exiting proc (F1 x)))
+Making let expression with: 
+Var-bindings:
+((F3 '*unassigned*))
+Body:
+((set! F3 (lambda (x) (define (F4 x) (define (inc x) (displayln Entered proc (inc x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (+ x 1)) (displayln Entered proc (F4 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (set! x (inc x)) (display Value of x after incrementing: ) (displayln x) (displayln Exiting proc (F4 x))) (displayln Entered proc (F3 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F4 x) (display Value of x after calling (F4 x): ) (displayln x) (displayln Exiting proc (F3 x)))) (displayln Entered proc (F2 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F3 x) (display Value of x after calling (F3 x): ) (displayln x) (displayln Exiting proc (F2 x)))
+Making procedure with: 
+Parameters:
+(x)
+Body:
+((let ((F3 '*unassigned*)) (set! F3 (lambda (x) (define (F4 x) (define (inc x) (displayln Entered proc (inc x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (+ x 1)) (displayln Entered proc (F4 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (set! x (inc x)) (display Value of x after incrementing: ) (displayln x) (displayln Exiting proc (F4 x))) (displayln Entered proc (F3 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F4 x) (display Value of x after calling (F4 x): ) (displayln x) (displayln Exiting proc (F3 x)))) (displayln Entered proc (F2 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F3 x) (display Value of x after calling (F3 x): ) (displayln x) (displayln Exiting proc (F2 x))))
+Entered proc (F1 x)
+Passed in value of x: 7
+Value of x after tripling: 21
+Making procedure with: 
+Parameters:
+(F3)
+Body:
+((set! F3 (lambda (x) (define (F4 x) (define (inc x) (displayln Entered proc (inc x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (+ x 1)) (displayln Entered proc (F4 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (set! x (inc x)) (display Value of x after incrementing: ) (displayln x) (displayln Exiting proc (F4 x))) (displayln Entered proc (F3 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F4 x) (display Value of x after calling (F4 x): ) (displayln x) (displayln Exiting proc (F3 x)))) (displayln Entered proc (F2 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F3 x) (display Value of x after calling (F3 x): ) (displayln x) (displayln Exiting proc (F2 x)))
+Making let expression with: 
+Var-bindings:
+((F4 '*unassigned*))
+Body:
+((set! F4 (lambda (x) (define (inc x) (displayln Entered proc (inc x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (+ x 1)) (displayln Entered proc (F4 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (set! x (inc x)) (display Value of x after incrementing: ) (displayln x) (displayln Exiting proc (F4 x)))) (displayln Entered proc (F3 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F4 x) (display Value of x after calling (F4 x): ) (displayln x) (displayln Exiting proc (F3 x)))
+Making procedure with: 
+Parameters:
+(x)
+Body:
+((let ((F4 '*unassigned*)) (set! F4 (lambda (x) (define (inc x) (displayln Entered proc (inc x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (+ x 1)) (displayln Entered proc (F4 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (set! x (inc x)) (display Value of x after incrementing: ) (displayln x) (displayln Exiting proc (F4 x)))) (displayln Entered proc (F3 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F4 x) (display Value of x after calling (F4 x): ) (displayln x) (displayln Exiting proc (F3 x))))
+Entered proc (F2 x)
+Passed in value of x: 21
+Value of x after tripling: 63
+Making procedure with: 
+Parameters:
+(F4)
+Body:
+((set! F4 (lambda (x) (define (inc x) (displayln Entered proc (inc x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (+ x 1)) (displayln Entered proc (F4 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (set! x (inc x)) (display Value of x after incrementing: ) (displayln x) (displayln Exiting proc (F4 x)))) (displayln Entered proc (F3 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (F4 x) (display Value of x after calling (F4 x): ) (displayln x) (displayln Exiting proc (F3 x)))
+Making let expression with: 
+Var-bindings:
+((inc '*unassigned*))
+Body:
+((set! inc (lambda (x) (displayln Entered proc (inc x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (+ x 1))) (displayln Entered proc (F4 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (set! x (inc x)) (display Value of x after incrementing: ) (displayln x) (displayln Exiting proc (F4 x)))
+Making procedure with: 
+Parameters:
+(x)
+Body:
+((let ((inc '*unassigned*)) (set! inc (lambda (x) (displayln Entered proc (inc x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (+ x 1))) (displayln Entered proc (F4 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (set! x (inc x)) (display Value of x after incrementing: ) (displayln x) (displayln Exiting proc (F4 x))))
+Entered proc (F3 x)
+Passed in value of x: 63
+Value of x after tripling: 189
+Making procedure with: 
+Parameters:
+(inc)
+Body:
+((set! inc (lambda (x) (displayln Entered proc (inc x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (+ x 1))) (displayln Entered proc (F4 x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (set! x (inc x)) (display Value of x after incrementing: ) (displayln x) (displayln Exiting proc (F4 x)))
+Making procedure with: 
+Parameters:
+(x)
+Body:
+((displayln Entered proc (inc x)) (display Passed in value of x: ) (displayln x) (set! x (* x 3)) (display Value of x after tripling: ) (displayln x) (+ x 1))
+Entered proc (F4 x)
+Passed in value of x: 189
+Value of x after tripling: 567
+Entered proc (inc x)
+Passed in value of x: 567
+Value of x after tripling: 1701
+Value of x after incrementing: 1702
+Exiting proc (F4 x)
+Value of x after calling (F4 x): 189
+Exiting proc (F3 x)
+Value of x after calling (F3 x): 63
+Exiting proc (F2 x)
+Value of x after calling (F2 x): 21
+Exiting proc (F1 x)
+
+[Metacircular Evaluator Output] >>> #<void>
+Finished evaluating: (F1 x)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: x
+
+[Metacircular Evaluator Output] >>> 7
+Finished evaluating: x
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (define x 24)
+
+[Metacircular Evaluator Output] >>> Defined the variable: x
+Finished evaluating: (define x 24)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (define y 84)
+
+[Metacircular Evaluator Output] >>> Defined the variable: y
+Finished evaluating: (define y 84)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: x
+
+[Metacircular Evaluator Output] >>> 24
+Finished evaluating: x
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: y
+
+[Metacircular Evaluator Output] >>> 84
+Finished evaluating: y
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (make-unbound! x)
+
+[Metacircular Evaluator Output] >>> Un-defined the variable: x
+Finished evaluating: (make-unbound! x)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: x
+Failed to evaluate: x
+
+[Metacircular Evaluator Output] >>> Unbound variable 'x
+Finished evaluating: x
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: y
+
+[Metacircular Evaluator Output] >>> 84
+Finished evaluating: y
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: z
+
+[Metacircular Evaluator Output] >>> 9
+Finished evaluating: z
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (make-unbound! y)
+
+[Metacircular Evaluator Output] >>> Un-defined the variable: y
+Finished evaluating: (make-unbound! y)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: y
+Failed to evaluate: y
+
+[Metacircular Evaluator Output] >>> Unbound variable 'y
+Finished evaluating: y
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (define x 2000)
+
+[Metacircular Evaluator Output] >>> Defined the variable: x
+Finished evaluating: (define x 2000)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: x
+
+[Metacircular Evaluator Output] >>> 2000
+Finished evaluating: x
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (define (F1) (define x 100) (display Value of x inside F1: ) (displayln x) (make-unbound! x) (display Displaying x after unbounding it: ) (displayln x))
+Making let expression with: 
+Var-bindings:
+((x '*unassigned*))
+Body:
+((set! x 100) (display Value of x inside F1: ) (displayln x) (make-unbound! x) (display Displaying x after unbounding it: ) (displayln x))
+Making procedure with: 
+Parameters:
+()
+Body:
+((let ((x '*unassigned*)) (set! x 100) (display Value of x inside F1: ) (displayln x) (make-unbound! x) (display Displaying x after unbounding it: ) (displayln x)))
+
+[Metacircular Evaluator Output] >>> Defined the variable: F1
+Finished evaluating: (define (F1) (define x 100) (display Value of x inside F1: ) (displayln x) (make-unbound! x) (display Displaying x after unbounding it: ) (displayln x))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (F1)
+Making procedure with: 
+Parameters:
+(x)
+Body:
+((set! x 100) (display Value of x inside F1: ) (displayln x) (make-unbound! x) (display Displaying x after unbounding it: ) (displayln x))
+Value of x inside F1: 100
+Displaying x after unbounding it: 2000
+
+[Metacircular Evaluator Output] >>> #<void>
+Finished evaluating: (F1)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: x
+
+[Metacircular Evaluator Output] >>> 2000
+Finished evaluating: x
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (make-unbound! x)
+
+[Metacircular Evaluator Output] >>> Un-defined the variable: x
+Finished evaluating: (make-unbound! x)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: x
+Failed to evaluate: x
+
+[Metacircular Evaluator Output] >>> Unbound variable 'x
+Finished evaluating: x
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (define (map proc items) (if (null? items) (quote ()) (cons (proc (car items)) (map proc (cdr items)))))
+Making procedure with: 
+Parameters:
+(proc items)
+Body:
+((if (null? items) '() (cons (proc (car items)) (map proc (cdr items)))))
+
+[Metacircular Evaluator Output] >>> Defined the variable: map
+Finished evaluating: (define (map proc items) (if (null? items) (quote ()) (cons (proc (car items)) (map proc (cdr items)))))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (map abs (list -10 2.5 -11.6 17))
+
+[Metacircular Evaluator Output] >>> (10 2.5 11.6 17)
+Finished evaluating: (map abs (list -10 2.5 -11.6 17))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (map abs (list -10 2.5 -11.6 0.0 17 -0.5 -8 -35 96))
+
+[Metacircular Evaluator Output] >>> (10 2.5 11.6 0.0 17 0.5 8 35 96)
+Finished evaluating: (map abs (list -10 2.5 -11.6 0.0 17 -0.5 -8 -35 96))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (map inc (list -10 2.5 -11.6 0.0 17 -0.5 -8 -35 96))
+
+[Metacircular Evaluator Output] >>> (-9 3.5 -10.6 1.0 18 0.5 -7 -34 97)
+Finished evaluating: (map inc (list -10 2.5 -11.6 0.0 17 -0.5 -8 -35 96))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (define (F1 a b) (displayln (quote Entered-F1)) (* a b))
 Making procedure with: 
 Parameters:
 (a b)
@@ -1590,13 +4400,19 @@ Body:
 ((displayln 'Entered-F1) (* a b))
 
 [Metacircular Evaluator Output] >>> Defined the variable: F1
+Finished evaluating: (define (F1 a b) (displayln (quote Entered-F1)) (* a b))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
 [Metacircular Evaluator Input] >>>
-(F1 8 4)
+Starting to evaluate: (F1 8 4)
 Entered-F1
 
 [Metacircular Evaluator Output] >>> 32
+Finished evaluating: (F1 8 4)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
 [Metacircular Evaluator Input] >>>
-(define (F2 a) (define b 9) (define c 11) (* a b c))
+Starting to evaluate: (define (F2 a) (define b 9) (define c 11) (* a b c))
 Making let expression with: 
 Var-bindings:
 ((b '*unassigned*) (c '*unassigned*))
@@ -1609,8 +4425,11 @@ Body:
 ((let ((b '*unassigned*) (c '*unassigned*)) (set! b 9) (set! c 11) (* a b c)))
 
 [Metacircular Evaluator Output] >>> Defined the variable: F2
+Finished evaluating: (define (F2 a) (define b 9) (define c 11) (* a b c))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
 [Metacircular Evaluator Input] >>>
-(F2 6)
+Starting to evaluate: (F2 6)
 Making procedure with: 
 Parameters:
 (b c)
@@ -1618,8 +4437,11 @@ Body:
 ((set! b 9) (set! c 11) (* a b c))
 
 [Metacircular Evaluator Output] >>> 594
+Finished evaluating: (F2 6)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
 [Metacircular Evaluator Input] >>>
-((lambda (a b) (displayln 'Entered-F1) (* a b)) 8 5)
+Starting to evaluate: ((lambda (a b) (displayln (quote Entered-F1)) (* a b)) 8 5)
 Making procedure with: 
 Parameters:
 (a b)
@@ -1628,8 +4450,11 @@ Body:
 Entered-F1
 
 [Metacircular Evaluator Output] >>> 40
+Finished evaluating: ((lambda (a b) (displayln (quote Entered-F1)) (* a b)) 8 5)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
 [Metacircular Evaluator Input] >>>
-((lambda (b) (* b b)) 16)
+Starting to evaluate: ((lambda (b) (* b b)) 16)
 Making procedure with: 
 Parameters:
 (b)
@@ -1637,8 +4462,11 @@ Body:
 ((* b b))
 
 [Metacircular Evaluator Output] >>> 256
+Finished evaluating: ((lambda (b) (* b b)) 16)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
 [Metacircular Evaluator Input] >>>
-((lambda (a b) (define e 3) (define f 4) (define g 5) (define h 6) (* a b e f g h)) 2 7)
+Starting to evaluate: ((lambda (a b) (define e 3) (define f 4) (define g 5) (define h 6) (* a b e f g h)) 2 7)
 Making let expression with: 
 Var-bindings:
 ((e '*unassigned*) (f '*unassigned*) (g '*unassigned*) (h '*unassigned*))
@@ -1656,8 +4484,11 @@ Body:
 ((set! e 3) (set! f 4) (set! g 5) (set! h 6) (* a b e f g h))
 
 [Metacircular Evaluator Output] >>> 5040
+Finished evaluating: ((lambda (a b) (define e 3) (define f 4) (define g 5) (define h 6) (* a b e f g h)) 2 7)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
 [Metacircular Evaluator Input] >>>
-((lambda (b) (define e 3) (* b e)) 85)
+Starting to evaluate: ((lambda (b) (define e 3) (* b e)) 85)
 Making let expression with: 
 Var-bindings:
 ((e '*unassigned*))
@@ -1675,8 +4506,11 @@ Body:
 ((set! e 3) (* b e))
 
 [Metacircular Evaluator Output] >>> 255
+Finished evaluating: ((lambda (b) (define e 3) (* b e)) 85)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
 [Metacircular Evaluator Input] >>>
-((lambda () (define e 3) e))
+Starting to evaluate: ((lambda () (define e 3) e))
 Making let expression with: 
 Var-bindings:
 ((e '*unassigned*))
@@ -1694,8 +4528,11 @@ Body:
 ((set! e 3) e)
 
 [Metacircular Evaluator Output] >>> 3
+Finished evaluating: ((lambda () (define e 3) e))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
 [Metacircular Evaluator Input] >>>
-((lambda () (display 'Hi)))
+Starting to evaluate: ((lambda () (display (quote Hi))))
 Making procedure with: 
 Parameters:
 ()
@@ -1703,8 +4540,11 @@ Body:
 ((display 'Hi))
 Hi
 [Metacircular Evaluator Output] >>> #<void>
+Finished evaluating: ((lambda () (display (quote Hi))))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
 [Metacircular Evaluator Input] >>>
-(let ((a 1) (b 3) (c 5)) (* a b c))
+Starting to evaluate: (let ((a 1) (b 3) (c 5)) (* a b c))
 Making procedure with: 
 Parameters:
 (a b c)
@@ -1712,8 +4552,11 @@ Body:
 ((* a b c))
 
 [Metacircular Evaluator Output] >>> 15
+Finished evaluating: (let ((a 1) (b 3) (c 5)) (* a b c))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
 [Metacircular Evaluator Input] >>>
-(let ((b 3) (c 5)) (* b c))
+Starting to evaluate: (let ((b 3) (c 5)) (* b c))
 Making procedure with: 
 Parameters:
 (b c)
@@ -1721,8 +4564,11 @@ Body:
 ((* b c))
 
 [Metacircular Evaluator Output] >>> 15
+Finished evaluating: (let ((b 3) (c 5)) (* b c))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
 [Metacircular Evaluator Input] >>>
-(let ((b 3)) (* b b))
+Starting to evaluate: (let ((b 3)) (* b b))
 Making procedure with: 
 Parameters:
 (b)
@@ -1730,23 +4576,23 @@ Body:
 ((* b b))
 
 [Metacircular Evaluator Output] >>> 9
+Finished evaluating: (let ((b 3)) (* b b))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
 [Metacircular Evaluator Input] >>>
-((lambda () (set! b 3) (* b b)))
+Starting to evaluate: ((lambda () (set! b 3) (* b b)))
 Making procedure with: 
 Parameters:
 ()
 Body:
 ((set! b 3) (* b b))
-Failed to evaluate: (set! b 3)
-Failed to evaluate: b
-Failed to evaluate: b
-Failed to evaluate: (* b b)
 
-[Metacircular Evaluator Output] >>> *: contract violation
-  expected: number?
-  given: "Unbound variable 'b"
+[Metacircular Evaluator Output] >>> 9
+Finished evaluating: ((lambda () (set! b 3) (* b b)))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
 [Metacircular Evaluator Input] >>>
-((lambda () (define b 3) (* b b)))
+Starting to evaluate: ((lambda () (define b 3) (* b b)))
 Making let expression with: 
 Var-bindings:
 ((b '*unassigned*))
@@ -1764,8 +4610,11 @@ Body:
 ((set! b 3) (* b b))
 
 [Metacircular Evaluator Output] >>> 9
+Finished evaluating: ((lambda () (define b 3) (* b b)))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
 [Metacircular Evaluator Input] >>>
-(define (F2 a) (define b 9) (define c 11) (* a b c))
+Starting to evaluate: (define (F2 a) (define b 9) (define c 11) (* a b c))
 Making let expression with: 
 Var-bindings:
 ((b '*unassigned*) (c '*unassigned*))
@@ -1778,8 +4627,11 @@ Body:
 ((let ((b '*unassigned*) (c '*unassigned*)) (set! b 9) (set! c 11) (* a b c)))
 
 [Metacircular Evaluator Output] >>> Defined the variable: F2
+Finished evaluating: (define (F2 a) (define b 9) (define c 11) (* a b c))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
 [Metacircular Evaluator Input] >>>
-(F2 456)
+Starting to evaluate: (F2 456)
 Making procedure with: 
 Parameters:
 (b c)
@@ -1787,8 +4639,11 @@ Body:
 ((set! b 9) (set! c 11) (* a b c))
 
 [Metacircular Evaluator Output] >>> 45144
+Finished evaluating: (F2 456)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
 [Metacircular Evaluator Input] >>>
-((lambda (a b c d) (define e 3) (define f 4) (displayln 'Entered-F1) (define g 5) (define h 6) (* a b c d e f g h)) 3 5 7 4)
+Starting to evaluate: ((lambda (a b c d) (define e 3) (define f 4) (displayln (quote Entered-F1)) (define g 5) (define h 6) (* a b c d e f g h)) 3 5 7 4)
 Making let expression with: 
 Var-bindings:
 ((e '*unassigned*) (f '*unassigned*) (g '*unassigned*) (h '*unassigned*))
@@ -1807,8 +4662,11 @@ Body:
 Entered-F1
 
 [Metacircular Evaluator Output] >>> 151200
+Finished evaluating: ((lambda (a b c d) (define e 3) (define f 4) (displayln (quote Entered-F1)) (define g 5) (define h 6) (* a b c d e f g h)) 3 5 7 4)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
 [Metacircular Evaluator Input] >>>
-((lambda () e (define e 3)))
+Starting to evaluate: ((lambda () e (define e 3)))
 Making let expression with: 
 Var-bindings:
 ((e '*unassigned*))
@@ -1827,8 +4685,11 @@ Body:
 Failed to evaluate: e
 
 [Metacircular Evaluator Output] >>> Assigned value to: e
+Finished evaluating: ((lambda () e (define e 3)))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
 [Metacircular Evaluator Input] >>>
-((lambda (a b c d) (define e 3) (define f 4) (displayln 'Entered-F1) (define g 5) (* a b c d e f g h) (define h 6)) 3 5 7 4)
+Starting to evaluate: ((lambda (a b c d) (define e 3) (define f 4) (displayln (quote Entered-F1)) (define g 5) (* a b c d e f g h) (define h 6)) 3 5 7 4)
 Making let expression with: 
 Var-bindings:
 ((e '*unassigned*) (f '*unassigned*) (g '*unassigned*) (h '*unassigned*))
@@ -1849,5 +4710,8 @@ Failed to evaluate: h
 Failed to evaluate: (* a b c d e f g h)
 
 [Metacircular Evaluator Output] >>> Assigned value to: h
+Finished evaluating: ((lambda (a b c d) (define e 3) (define f 4) (displayln (quote Entered-F1)) (define g 5) (* a b c d e f g h) (define h 6)) 3 5 7 4)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
 [Metacircular Evaluator Input] >>>
 .
