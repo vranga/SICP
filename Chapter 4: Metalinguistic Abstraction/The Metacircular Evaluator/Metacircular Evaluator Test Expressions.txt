@@ -1,0 +1,469 @@
+; DIRECT PROCEDURE CALLS
+
+(define cond1
+	'(cond
+		((eq? a b) (proc1 a))
+		((> x y) (display x))
+		(else
+			(display (+ x y))
+		)
+	)
+)
+
+(define cond2
+	'(cond
+		((eq? a b) (proc1 a))
+		((> x y) (display x))
+		((assoc 'b '((a 1) (b 2))) => cadr)
+		(else
+			(display (+ x y))
+		)
+	)
+)
+
+(cond->if cond1)
+(cond->if cond2)
+
+(define letexp1
+	'(let ((frame (first-frame env)))
+		(scan
+			(frame-variables frame)
+			(frame-values frame)
+		)
+	)
+)
+
+(define letexp2
+	'(let ((first (car clauses)) (rest (cdr clauses)))
+		(if (cond-else-clause? first)
+			(if (null? rest)
+				(sequence->exp (cond-actions first))
+				(error "ELSE clause isn't last -- COND->IF" clauses)
+			)
+			(if (special-cond-clause-syntax? first)
+				; <handle the <test> => <recipient> syntax>
+				(make-if
+					(list 'not (list 'eq? (cond-predicate first) 'false))
+					(list (recipient-proc first) (cond-predicate first))
+					(expand-clauses rest)
+				)
+				(make-if
+					(cond-predicate first)
+					(sequence->exp (cond-actions first))
+					(expand-clauses rest)
+				)
+			)
+		)
+	)
+)
+
+(define letexp3 '(let ((a 10) (b 20) (c 30) (d 45)) (* a b c d)))
+
+(define letexp4 '(let ((a 10) (b 20) (c 30) (d 45)) (displayln 'Multiplying) (* a b c d)))
+
+(define letexp5
+	'(let ((f (square 4)))
+		(+
+			(cube f)
+			(* 2 f)
+		)
+	)
+)
+
+(let->combination letexp1)
+(let->combination letexp2)
+(let->combination letexp3)
+(let->combination letexp4)
+(let->combination letexp5)
+
+(define letstar1
+	'(let* ((x 3) (y (+ x 2)) (z (+ x y 5)))
+		(* x z)
+	 )
+)
+
+(define letstar2
+	'(let* ((x 3) (y (+ x 2)) (z (+ x y 5)))
+		(displayln 'In-letstar2)
+		(* x z)
+	 )
+)
+
+(define letstarnested
+	'(let* ((x 3) (y (+ x 2)) (z (+ x y 5)))
+		(let* ((x 3) (y (+ x 2)) (z (+ x y 5)))
+			(displayln 'In-letstar2)
+			(* x z)
+	 	)
+	 )
+)
+
+(define name-let-exp
+	'(let fib-iter ((a 1) (b 0) (count n))
+		(if (= count 0)
+			b
+			(fib-iter (+ a b) a (- count 1))
+		)
+	)
+)
+
+letstar1
+(make-let* (let*-var-bindings letstar1) (let*-body letstar1))
+letstar2
+(make-let* (let*-var-bindings letstar2) (let*-body letstar2))
+letstarnested
+(make-let* (let*-var-bindings letstarnested) (let*-body letstarnested))
+(let*->nested-lets letstar1)
+(let*->nested-lets letstar2)
+(let*->nested-lets letstarnested)
+
+(define L1 '(lambda (a b) (displayln 'Entered-F1) (* a b)))
+(lambda-parameters L1)
+(lambda-body L1)
+(scan-out-defines (lambda-body L1))
+(define L2 '(lambda (b) (* b b)))
+(lambda-parameters L2)
+(lambda-body L2)
+(scan-out-defines (lambda-body L2))
+(define L3 '(lambda (a b c d) (define e 3) (define f 4) (displayln 'Entered-F1) (define g 5) (* a b c d e f g h) (define h 6)))
+(lambda-parameters L3)
+(lambda-body L3)
+(scan-out-defines (lambda-body L3))
+(define L4 '(lambda (a b) (define e 3) (define f 4) (define g 5) (* a b c d e f g h) (define h 6)))
+(lambda-parameters L4)
+(lambda-body L4)
+(scan-out-defines (lambda-body L4))
+(define L5 '(lambda (b) (define e 3) (* b e)))
+(lambda-parameters L5)
+(lambda-body L5)
+(scan-out-defines (lambda-body L5))
+(define L6 '(lambda () (define e 3) e))
+(lambda-parameters L6)
+(lambda-body L6)
+(scan-out-defines (lambda-body L6))
+(define L7 '(lambda () (display 'Hi)))
+(lambda-parameters L7)
+(lambda-body L7)
+(scan-out-defines (lambda-body L7))
+
+; EXPRESSIONS TO FEED TO THE EVALUATOR
+
+(define (square x) (* x x))
+(define (cube x) (* (square x) x))
+
+(define a '(set! x 5))
+(define d '(define y 6))
+(define i '(if true (display 'yes) (display 'no)))
+(define v 'mud)
+(define l '(lambda (x) (display "Executing lambda proc")))
+(define b '(begin (display '(hi there))))
+(define c '(cond ((> 5 2) (display 'yes)) (else (display 'no))))
+
+(cond ((assoc 'b '((a 1) (b 2))) => cadr)
+      (else false))
+(cond ((assoc 'a '((a 1) (b 2))) => cadr)
+      (else false))
+(cond ((assoc 'c '((a 1) (b 2))) => cadr)
+      (else false))
+
+(and (> 10 6) (< 9 19) (= 5 5.0))
+(and (> 10 6) (< 9 19) (= 6 5.0))
+(and (> 10 6) (< 29 19) (= 5 5.0))
+(and (> 10 6) (< 9 19) (= 15 5.0))
+(and (> 10 6) (< 9 19) (= 5 5.0) (< 20 22))
+
+(and (< 10 6) (< 9 19) (= 5 5.0))
+(and (< 10 16) (> 9 -9) (= 5 5.0))
+
+(or (> 10 6) (< 9 19) (= 5 5.0))
+(or (> 10 6) (< 9 19) (= 5 35.0))
+(or (> 10 6) (> 9 19) (= 5 5.0))
+(or (> 10 6) (< 79 19) (= 55 5.0))
+(or (> 10 56) (< 9 19) (= 5 5.0))
+(or (> 10 60) (< 9 19) (= 55 5.0))
+(or (> 10 60) (< 90 19) (= 5 5.0))
+(or (> 10 600) (< 90 19) (= 65 5.0))
+
+(or (< 10 6) (< 79 19) (= 55 5.0))
+(or (= 10 6) (> 9 19) (< 5 5.0) (> 1 2) (> 20 19))
+
+(define y 8)
+y
+(set! y 89)
+y
+(define (append x y) (if (null? x) y (cons (car x) (append (cdr x) y))))
+(append '(q w e r t y) '(z x c v b n))
+
+(let ((a 10) (b 20) (c 30) (d 45)) (displayln 'Multiplying) (* a b c d))
+
+(let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (displayln 'Multiplying...) (* x z))
+(let* ((x 3) (y (+ x 2)) (z (+ x y 5)))
+	(displayln 'Multiplying...)
+	(* 
+		(let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (displayln 'Multiplying...) (* x z))
+		z
+	)
+)
+
+(let ((f (square 4))) (+ (cube f) (* 2 f)))
+(let ((a 10) (b 20) (c 30) (d 45)) (* a b c d))
+(let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (* x z))
+(define (fib n) (let fib-iter ((a 1) (b 0) (count n)) (if (= count 0) b (fib-iter (+ a b) a (- count 1)))))
+(fib 0)
+(fib 1)
+(fib 2)
+(fib 3)
+(fib 4)
+(fib 5)
+(fib 6)
+(fib 7)
+(fib 10)
+(fib 20)
+(fib 25)
+(fib 28)
+(fib 30)
+(fib 50)
+
+(define x 365)
+
+(do
+    (display 'x:)
+    (display x)
+    (newline)
+    (set! x (+ x 2))
+    (display '(x after setting:))
+    (display x)
+    (newline)
+    while (< x 10)
+)
+
+(define (inc val)
+    (+ val 1)
+)
+
+(inc 100)
+
+(for (i 1) (i 40) inc
+    (display i)
+    (newline)
+)
+
+(do
+    (display 'x:)
+    (display x)
+    (newline)
+    (set! x (+ x 2))
+    (display '(x after setting:))
+    (display x)
+    (newline)
+    until (> x 30)
+)
+x
+
+(while (< x 50)
+    (display x)
+    (newline)
+    (set! x (+ x 3))
+)
+
+(define x -10)
+x
+(do
+    (display 'x:)
+    (display x)
+    (newline)
+    (set! x (+ x 2))
+    (display '(x after setting:))
+    (display x)
+    (newline)
+    while (< x 10)
+)
+(inc 100)
+(for (i 1) (i 40) inc
+    (display i)
+    (newline)
+)
+x
+(define x 1)
+x
+(do
+    (display 'x:)
+    (display x)
+    (newline)
+    (set! x (+ x 2))
+    (display '(x after setting:))
+    (display x)
+    (newline)
+    until (> x 30)
+)
+x
+(while (< x 50)
+    (display x)
+    (newline)
+    (set! x (+ x 3))
+)
+(define x 31)
+x
+(while (< x 50)
+    (display x)
+    (newline)
+    (set! x (+ x 3))
+)
+(inc 2001)
+(let ((f (square 4))) (+ (cube f) (* 2 f)))
+(let ((a 10) (b 20) (c 30) (d 45)) (* a b c d))
+(let* ((x 3) (y (+ x 2)) (z (+ x y 5))) (* x z))
+
+(define x 11)
+x
+(define (P1 x) (display "Passed in value: ") (displayln x) (set! x 31) (display "Modified value: ") (displayln x))
+(P1 x)
+x
+(set! x (+ x 3))
+x
+(P1 22)
+x
+(P1 x)
+x
+
+(define x 3)
+x
+(make-unbound! x)
+x
+(define x 4)
+(define y 5)
+x
+y
+(make-unbound! y)
+y
+x
+(make-unbound! x)
+x
+(define x 7)
+(define y 8)
+(define z 9)
+x
+y
+z
+(make-unbound! y)
+y
+x
+z
+
+(define (F1 x)
+
+	(define (F2 x)
+		(define (F3 x)
+			(define (F4 x)
+				(define (inc x)
+					(displayln "Entered proc (inc x)")
+					(display "Passed in value of x: ")
+					(displayln x)
+					(set! x (* x 3))
+					(display "Value of x after tripling: ")
+					(displayln x)
+					(+ x 1)
+				)
+				(displayln "Entered proc (F4 x)")
+				(display "Passed in value of x: ")
+				(displayln x)
+				(set! x (* x 3))
+				(display "Value of x after tripling: ")
+				(displayln x)
+				(set! x (inc x))
+				(display "Value of x after incrementing: ")
+				(displayln x)
+				(displayln "Exiting proc (F4 x)")
+			)
+			(displayln "Entered proc (F3 x)")
+			(display "Passed in value of x: ")
+			(displayln x)
+			(set! x (* x 3))
+			(display "Value of x after tripling: ")
+			(displayln x)
+			(F4 x)
+			(display "Value of x after calling (F4 x): ")
+			(displayln x)
+			(displayln "Exiting proc (F3 x)")
+		)
+		(displayln "Entered proc (F2 x)")
+		(display "Passed in value of x: ")
+		(displayln x)
+		(set! x (* x 3))
+		(display "Value of x after tripling: ")
+		(displayln x)
+		(F3 x)
+		(display "Value of x after calling (F3 x): ")
+		(displayln x)
+		(displayln "Exiting proc (F2 x)")
+	)
+
+	(displayln "Entered proc (F1 x)")
+	(display "Passed in value of x: ")
+	(displayln x)
+	(set! x (* x 3))
+	(display "Value of x after tripling: ")
+	(displayln x)
+	(F2 x)
+	(display "Value of x after calling (F2 x): ")
+	(displayln x)
+	(displayln "Exiting proc (F1 x)")
+)
+
+(F1 x)
+x
+(define x 24)
+(define y 84)
+x
+y
+(make-unbound! x)
+x
+y
+z
+(make-unbound! y)
+y
+(define x 2000)
+x
+(define (F1)
+	(define x 100)
+	(display "Value of x inside F1: ")
+	(displayln x)
+	(make-unbound! x)
+	(display "Displaying x after unbounding it: ")
+	(displayln x)
+)
+(F1)
+x
+(make-unbound! x)
+x
+
+(define (map proc items)
+	(if (null? items)
+		'()
+		(cons (proc (car items)) (map proc (cdr items)))
+	)
+)
+(map abs (list -10 2.5 -11.6 17))
+(map abs (list -10 2.5 -11.6 0.0 17 -.5 -8 -35 96))
+(map inc (list -10 2.5 -11.6 0.0 17 -.5 -8 -35 96))
+
+(define (F1 a b) (displayln 'Entered-F1) (* a b))
+(F1 8 4)
+(define (F2 a) (define b 9) (define c 11) (* a b c))
+(F2 6)
+((lambda (a b) (displayln 'Entered-F1) (* a b)) 8 5)
+((lambda (b) (* b b)) 16)
+((lambda (a b) (define e 3) (define f 4) (define g 5) (define h 6) (* a b e f g h)) 2 7)
+((lambda (b) (define e 3) (* b e)) 85)
+((lambda () (define e 3) e))
+((lambda () (display 'Hi)))
+(let ((a 1) (b 3) (c 5)) (* a b c))
+(let ((b 3) (c 5)) (* b c))
+(let ((b 3)) (* b b))
+((lambda () (set! b 3) (* b b)))
+((lambda () (define b 3) (* b b)))
+(define (F2 a) (define b 9) (define c 11) (* a b c))
+(F2 456)
+((lambda (a b c d) (define e 3) (define f 4) (displayln 'Entered-F1) (define g 5) (define h 6) (* a b c d e f g h)) 3 5 7 4)
+((lambda () e (define e 3)))
+((lambda (a b c d) (define e 3) (define f 4) (displayln 'Entered-F1) (define g 5) (* a b c d e f g h) (define h 6)) 3 5 7 4)
