@@ -183,7 +183,7 @@
 			((eq? var (name-in-binding (first-binding frame)))
 				; The first binding contains this variable. We can either null it out
 				; or physically remove it. I choose to null it out.
-				(set-mcar! (make-binding null null))
+				(set-mcar! frame (make-binding null null))
 			)
 			((null? (rest-bindings frame))
 				; First binding does not contain this variable and we have reached the
@@ -1591,6 +1591,10 @@ z
 )
 
 [Metacircular Evaluator Output] >>> ok
+[Metacircular Evaluator Input] >>>
+x
+
+[Metacircular Evaluator Output] >>> 7
 [Metacircular Evaluator Input] >>>
 (F1 x)
 Extended the environment:
