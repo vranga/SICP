@@ -54,6 +54,7 @@
 	)
 )
 
+(define the-empty-stream '())
 (define (stream-enumerate-interval low high)
 	(if (> low high)
 		the-empty-stream
@@ -64,8 +65,19 @@
 	)
 )
 
-(define stream-of-ten-elements (stream-enumerate-interval 5 14))
-(stream-car stream-of-ten-elements)
+(define stream-of-five-elements (stream-enumerate-interval 5 9))
+stream-of-five-elements
+(stream-cdr stream-of-five-elements)
+(stream-cdr (stream-cdr stream-of-five-elements))
+(stream-cdr (stream-cdr (stream-cdr stream-of-five-elements)))
+(stream-cdr (stream-cdr (stream-cdr (stream-cdr stream-of-five-elements))))
+(stream-cdr (stream-cdr (stream-cdr (stream-cdr (stream-cdr stream-of-five-elements)))))
+
+(stream-car stream-of-five-elements)
+(stream-car (stream-cdr stream-of-five-elements))
+(stream-car (stream-cdr (stream-cdr stream-of-five-elements)))
+(stream-car (stream-cdr (stream-cdr (stream-cdr stream-of-five-elements))))
+(stream-car (stream-cdr (stream-cdr (stream-cdr (stream-cdr stream-of-five-elements)))))
 
 ; Tests
 
