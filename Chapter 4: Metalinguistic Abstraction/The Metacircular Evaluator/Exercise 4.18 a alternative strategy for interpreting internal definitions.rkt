@@ -256,9 +256,9 @@
 	; (newline)
 	(let ((ref (find-variable-position-in-env var env)))
 		(if (null? ref)
-			(error "Unbound variable" var)
+			(error "Unbound name" var)
 			(if (eq? (cdr (mcar ref)) '*unassigned*)
-				(error "Cannot lookup unassigned variable " var)
+				(error "Cannot lookup unassigned name" var)
 				(cdr (mcar ref))
 			)
 		)
@@ -277,6 +277,10 @@
 	(cadr expression)
 )
 
+(define (make-delay expression)
+	(cons 'delay expression)
+)
+
 (define (EVAL-delay expression env)
 	(make-lambda null (list (delay-predicate expression)))
 )
@@ -291,7 +295,104 @@
 )
 
 (define (EVAL-force expression env)
-	(EVAL (list (force-predicate expression)) env)
+	; Note:
+	; The 'force-predicate' could be one of two expression types:
+	; 1. A "delay" expression
+	; 2. A variable that points to a lambda expression (possibly produced by an earlier
+	; "delay" call on some expression)
+	; 3. A lambda expression directly
+
+	; Case 1 ("delay" expression)
+	; The inner EVAL produces a lambda expression
+	; The outer EVAL creates a compound-procedure object from the lambda expression
+	; supplied to it. Then APPLY executes the compound procedure
+
+	; Case 2 (variable pointing to a lambda expression)
+	; The inner EVAL looks up the variable and fetches the lambda expression from the
+	; environment frame
+	; The outer EVAL creates a compound-procedure object from the lambda expression
+	; supplied to it. Then APPLY executes the compound procedure
+
+	; Case 3 (A lambda expression) (TODO)
+
+	(APPLY
+		(EVAL (EVAL (force-predicate expression) env) env)
+		null
+	)
+)
+
+; 'cons-stream' Expressions
+(define the-empty-stream '())
+(define (cons-stream? expression)
+	(tagged-list? expression 'cons-stream)
+)
+(define (cons-stream-first-arg expression) (cadr expression))
+(define (cons-stream-second-arg expression) (caddr expression))
+
+(define (EVAL-cons-stream expression env)
+	; We need to impose certain restrictions on the second argument to cons-stream
+	(let ((first-arg (cons-stream-first-arg expression))
+		  (second-arg (cons-stream-second-arg expression)))
+		(cond
+			((or (self-evaluating? second-arg) (quoted? second-arg))
+				(cons
+					(EVAL first-arg env)
+					(make-lambda null second-arg)
+				)
+			)
+			((variable? second-arg)
+				(cons
+					(EVAL first-arg env)
+					(make-lambda null (lookup-variable-value second-arg env))
+				)
+			)
+			((pair? second-arg)
+				; If the second-arg is neither self-evaluating nor quoted nor a variable
+				; then we expect it to be a compound procedure
+				(let ((handler (get (operator second-arg) 'eval)))
+					(if (not (null? handler))
+						; handler found
+						(error "Invalid second argument to cons-stream" expresssion)
+						; handler not found so it must be a compound procedure
+						(cons
+							(EVAL first-arg env)
+							(make-lambda
+								null 
+								(list (cons
+									(operator second-arg)
+									(list-of-values (operands second-arg) env)
+								))
+							)
+						)
+					)
+				)
+			)
+			(else
+				(error "Invalid second argument to cons-stream" expresssion)
+			)
+		)
+	)
+)
+
+; 'stream-car' Expressions
+(define (stream-car? expression)
+	(tagged-expression? expression 'stream-car)
+)
+(define (stream-car-predicate expression) (cadr expression))
+(define (EVAL-stream-car expression env)
+	(car (EVAL (stream-car-predicate expression) env))
+)
+
+; 'stream-cdr' Expressions
+(define (stream-cdr? expression)
+	(tagged-expression? expression 'stream-cdr)
+)
+(define (stream-cdr-predicate expression) (cadr expression))
+(define (EVAL-stream-cdr expression env)
+	(APPLY
+		(EVAL (cdr (EVAL (stream-cdr-predicate expression) env)) env)
+		null
+	)
 )
 
 ; 'if' Expressions
@@ -412,7 +513,8 @@
 )
 
 (define (make-procedure parameters body env)
-	(let ((transformed-body (scan-out-defines body)))
+	; (let ((transformed-body (scan-out-defines body)))
+	(let ((transformed-body body))
 		(displayln "Making procedure with: ")
 		(displayln "Parameters:")
 		(displayln parameters)
@@ -1145,8 +1247,6 @@
 		(list 'newline newline)
 		(list 'not not)
 		(list 'null? null?)
-		(list 'stream-first stream-first)
-		(list 'stream-rest stream-rest)
 		(list 'void void)
 		(list '> >)
 		(list '< <)
@@ -1433,6 +1533,7 @@
 (put 'and 'eval EVAL-and)
 (put 'begin 'eval EVAL-begin)
 (put 'cond 'eval EVAL-cond)
+(put 'cons-stream 'eval EVAL-cons-stream)
 (put 'define 'eval EVAL-definition)
 (put 'delay 'eval EVAL-delay)
 (put 'do 'eval EVAL-do)
@@ -1445,6 +1546,8 @@
 (put 'make-unbound! 'eval EVAL-un-definition)
 (put 'or 'eval EVAL-or)
 (put 'set! 'eval EVAL-assignment)
+(put 'stream-car 'eval EVAL-stream-car)
+(put 'stream-cdr 'eval EVAL-stream-cdr)
 (put 'variable 'eval lookup-variable-value)
 (put 'while 'eval EVAL-while)
 
@@ -1515,7 +1618,7 @@
 	(if (compound-procedure? object)
 		(display
 			(list
-				'compound-procedure
+				'procedure
 				(procedure-parameters object)
 				(procedure-body object)
 				'<procedure-env>
@@ -1593,6 +1696,35 @@ Welcome to DrRacket, version 8.1 [cs].
 Language: racket, with debugging; memory limit: 128 MB.
 
 [Metacircular Evaluator Input] >>>
+(define b 69)
+Starting to evaluate: (define b 69)
+
+[Metacircular Evaluator Output] >>> Defined the variable: b
+Finished evaluating: (define b 69)
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+b
+Starting to evaluate: b
+
+[Metacircular Evaluator Output] >>> 69
+Finished evaluating: b
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+(force (delay b))
+Starting to evaluate: (force (delay b))
+Making procedure with: 
+Parameters:
+()
+Body:
+(b)
+
+[Metacircular Evaluator Output] >>> 69
+Finished evaluating: (force (delay b))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
 ((lambda (x) (* x x x)) 11)
 Starting to evaluate: ((lambda (x) (* x x x)) 11)
 Making procedure with: 
@@ -1632,8 +1764,16 @@ Finished evaluating: ((lambda () ((lambda (x) (* x x x)) 11)))
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 [Metacircular Evaluator Input] >>>
-(force (lambda () ((lambda (x) (* x x x)) 11)))
-Starting to evaluate: (force (lambda () ((lambda (x) (* x x x)) 11)))
+(delay ((lambda (x) (* x x x)) 11))
+Starting to evaluate: (delay ((lambda (x) (* x x x)) 11))
+
+[Metacircular Evaluator Output] >>> (lambda () ((lambda (x) (* x x x)) 11))
+Finished evaluating: (delay ((lambda (x) (* x x x)) 11))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+(force (delay ((lambda (x) (* x x x)) 11)))
+Starting to evaluate: (force (delay ((lambda (x) (* x x x)) 11)))
 Making procedure with: 
 Parameters:
 ()
@@ -1646,7 +1786,38 @@ Body:
 ((* x x x))
 
 [Metacircular Evaluator Output] >>> 1331
-Finished evaluating: (force (lambda () ((lambda (x) (* x x x)) 11)))
+Finished evaluating: (force (delay ((lambda (x) (* x x x)) 11)))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+(force (delay b))
+Starting to evaluate: (force (delay b))
+Making procedure with: 
+Parameters:
+()
+Body:
+(b)
+
+[Metacircular Evaluator Output] >>> 69
+Finished evaluating: (force (delay b))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+(force (delay (force (delay b))))
+Starting to evaluate: (force (delay (force (delay b))))
+Making procedure with: 
+Parameters:
+()
+Body:
+((force (delay b)))
+Making procedure with: 
+Parameters:
+()
+Body:
+(b)
+
+[Metacircular Evaluator Output] >>> 69
+Finished evaluating: (force (delay (force (delay b))))
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 [Metacircular Evaluator Input] >>>
