@@ -420,14 +420,6 @@
 										(make-delay
 								 			(cons
 								 				(operator second-arg)
-
-												; TODO: Remove this part (call to list-of-values)
-								 				; ; We need to evaluate the operands and make them ready for a later call
-								 				; ; Note that the delayed expression will be evaluated in a different environment later
-								 				; ; This future environment will not contain the bindings that are needed to evaulate the
-												; ; operands. So the operands need to be evaluated now
-								 				; (list-of-values (operands second-arg) env)
-
 								 				; Note that the delayed expression will be evaluated in a different environment later
 								 				; This future environment will not contain the bindings that are needed to evaulate the
 												; operands. So we pre-process the operands by substituting any occurrences of names that
