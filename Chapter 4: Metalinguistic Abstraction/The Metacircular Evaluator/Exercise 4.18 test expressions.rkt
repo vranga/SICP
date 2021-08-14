@@ -1,5 +1,19 @@
 #lang racket
 
+(define b 69)
+b
+(force (delay b))
+(delay b)
+((lambda (x) (* x x x)) 11)
+(delay ((lambda (x) (* x x x)) 11))
+((lambda () ((lambda (x) (* x x x)) 11)))
+(force (delay ((lambda (x) (* x x x)) 11)))
+(force (delay (force (delay b))))
+(force (delay (force (delay (force (delay (define q 45)))))))
+q
+(force (delay (force (delay (set! q 86)))))
+q
+
 (define the-empty-stream '())
 (define (stream-empty? s)
 	(if (eq? s the-empty-stream)
@@ -31,6 +45,20 @@
 	)	
 )
 
+(define (stream-map proc stream)
+	(if (stream-empty? stream)
+		the-empty-stream
+		(cons-stream
+			(proc (stream-car stream))
+			(stream-map proc (stream-cdr stream))
+		)
+	)
+)
+
+(define (scale-stream stream factor)
+	(stream-map (lambda (x) (* x factor)) stream)
+)
+
 (define stream-of-five-elements (stream-enumerate-interval 5 9))
 stream-of-five-elements
 (stream-cdr stream-of-five-elements)
@@ -56,6 +84,17 @@ sum-stream
 (stream-car (stream-cdr (stream-cdr (stream-cdr (stream-cdr sum-stream)))))
 (stream-car (stream-cdr (stream-cdr (stream-cdr (stream-cdr (stream-cdr sum-stream))))))
 
+(define scaled-stream (scale-stream one-to-six 2))
+scaled-stream
+(stream-car scaled-stream)
+(stream-car (stream-cdr scaled-stream))
+(stream-car (stream-cdr (stream-cdr scaled-stream)))
+(stream-car (stream-cdr (stream-cdr (stream-cdr scaled-stream))))
+(stream-car (stream-cdr (stream-cdr (stream-cdr (stream-cdr scaled-stream)))))
+(stream-car (stream-cdr (stream-cdr (stream-cdr (stream-cdr (stream-cdr scaled-stream))))))
+
+;;;;;;;;;;;;;;;;;
+
 (define (integral delayed-integrand initial-value dt)
 	(define int
 		(stream-cons initial-value
@@ -76,24 +115,10 @@ sum-stream
 	y
 )
 
-(define (scale-stream stream factor)
-	(stream-map (lambda (x) (* x factor)) stream)
-)
-
-(define (stream-map proc stream)
-	(if (stream-empty? stream)
-		empty-stream
-		(stream-cons
-			(apply proc (list (stream-first stream)))
-			(stream-map proc (stream-rest stream))
-		)
-	)
-)
-
 (define (stream-ref s n)
 	(if (= n 0)
-		(stream-first s)
-		(stream-ref (stream-rest s) (- n 1))
+		(stream-car s)
+		(stream-ref (stream-cdr s) (- n 1))
 	)
 )
 
