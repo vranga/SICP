@@ -57,7 +57,7 @@
 
 (define (EVAL expression env)
 	; (with-handlers ([exn:fail? (lambda (exn) 
-	;		(display "Failed to evaluate: ") (displayln expression) (exn-message exn))])
+	; 		(display "Failed to evaluate: ") (displayln expression) (exn-message exn))])
 		(cond
 			((self-evaluating? expression) expression)
 			((quoted? expression) (text-of-quotation expression))
@@ -348,6 +348,49 @@
 (define (cons-stream-second-arg expression) (caddr expression))
 
 (define (EVAL-cons-stream expression env)
+
+	(define (substitute-names-from-env-for-values expression env)
+
+		(define (substitute-names-from-frame-for-values expression frame)
+
+			(define (substitute-name-for-value expression name value)
+				(cond
+					((or (self-evaluating? expression) (null? expression)) expression)
+					((quoted? expression) expression)
+					((variable? expression)
+						(if (eq? expression name)
+							value
+							expression
+						)
+					)
+					((pair? expression)
+						(cons
+							(substitute-name-for-value (car expression) name value)
+							(substitute-name-for-value (cdr expression) name value)
+						)
+					)
+					(else
+						(error "Invalid argument to procedure substitute-name-for-value" expression)
+					)
+				)
+			)
+
+			(if (null? frame)
+				expression
+				(let ((first-binding (first-binding frame)))
+					(if (null? first-binding)
+						expression
+						(let ((new-expression (substitute-name-for-value expression (name-in-binding first-binding) (value-in-binding first-binding))))
+							(substitute-names-from-frame-for-values new-expression (rest-bindings frame))
+						)
+					)
+				)
+			)
+		)
+
+		(substitute-names-from-frame-for-values expression (first-frame env))
+	)
+
 	; We need to impose certain restrictions on the second argument to cons-stream
 	; The second argument should be an expression that produces a stream. So I impose 
 	; the condition that it should be a compound procedure
@@ -369,20 +412,31 @@
 						(error "Invalid second argument to cons-stream" expression)
 						; handler not found so it must be a compound procedure
 						(cons
-							(EVAL first-arg env)
-							(list
-								(EVAL-delay
-									(make-delay
-							 			(cons
-							 				(operator second-arg)
-							 				; We need to evaluate the operands and make them ready for a later call
-							 				; Note that the delayed expression will be evaluated in a different environment later
-							 				; This future environment will not contain the bindings that are needed to evaulate the
-											; operands. So the operands need to be evaluated now
-							 				(list-of-values (operands second-arg) env)
-							 			)
+							'stream-object
+							(cons
+								(EVAL first-arg env)
+								(list
+									(EVAL-delay
+										(make-delay
+								 			(cons
+								 				(operator second-arg)
+
+												; TODO: Remove this part (call to list-of-values)
+								 				; ; We need to evaluate the operands and make them ready for a later call
+								 				; ; Note that the delayed expression will be evaluated in a different environment later
+								 				; ; This future environment will not contain the bindings that are needed to evaulate the
+												; ; operands. So the operands need to be evaluated now
+								 				; (list-of-values (operands second-arg) env)
+
+								 				; Note that the delayed expression will be evaluated in a different environment later
+								 				; This future environment will not contain the bindings that are needed to evaulate the
+												; operands. So we pre-process the operands by substituting any occurrences of names that
+												; exist in the current environment (current frame only) with their corresponding values
+								 				(substitute-names-from-env-for-values (operands second-arg) env)
+								 			)
+										)
+										env
 									)
-									env
 								)
 							)
 						)
@@ -396,13 +450,23 @@
 	)
 )
 
+; 'stream-object' Expressions
+(define (stream-object? expression)
+	(tagged-expression? expression 'stream-object)
+)
+(define (EVAL-stream-object expression env)
+	; stream objects can be understood only by stream-car and stream-cdr.
+	; Don't evaluate a stream object directly.
+	expression
+)
+
 ; 'stream-car' Expressions
 (define (stream-car? expression)
 	(tagged-expression? expression 'stream-car)
 )
 (define (stream-car-predicate expression) (cadr expression))
 (define (EVAL-stream-car expression env)
-	(car (EVAL (stream-car-predicate expression) env))
+	(cadr (EVAL (stream-car-predicate expression) env))
 )
 
 ; 'stream-cdr' Expressions
@@ -411,7 +475,7 @@
 )
 (define (stream-cdr-predicate expression) (cadr expression))
 (define (EVAL-stream-cdr expression env)
-	(EVAL-force (make-force (cadr (EVAL (stream-cdr-predicate expression) env))) env)
+	(EVAL-force (make-force (caddr (EVAL (stream-cdr-predicate expression) env))) env)
 )
 
 ; 'if' Expressions
@@ -1294,7 +1358,6 @@
 (define (first-binding frame) (mcar frame))
 (define (rest-bindings frame) (mcdr frame))
 
-
 (define (enclosing-environment env) (cdr env))
 (define (first-frame env) (car env))
 (define the-empty-environment '())
@@ -1567,6 +1630,7 @@
 (put 'set! 'eval EVAL-assignment)
 (put 'stream-car 'eval EVAL-stream-car)
 (put 'stream-cdr 'eval EVAL-stream-cdr)
+(put 'stream-object 'eval EVAL-stream-object)
 (put 'variable 'eval lookup-variable-value)
 (put 'while 'eval EVAL-while)
 
@@ -1722,7 +1786,7 @@ Starting to evaluate: (define b 69)
 Finished evaluating: (define b 69)
 
 [Metacircular Evaluator Output] >>> Defined the variable: b
-++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 [Metacircular Evaluator Input] >>>
 b
@@ -1731,7 +1795,7 @@ Starting to evaluate: b
 Finished evaluating: b
 
 [Metacircular Evaluator Output] >>> 69
-++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 [Metacircular Evaluator Input] >>>
 (force (delay b))
@@ -1745,7 +1809,7 @@ Body:
 Finished evaluating: (force (delay b))
 
 [Metacircular Evaluator Output] >>> 69
-++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 [Metacircular Evaluator Input] >>>
 (delay b)
@@ -1754,7 +1818,7 @@ Starting to evaluate: (delay b)
 Finished evaluating: (delay b)
 
 [Metacircular Evaluator Output] >>> (lambda () b)
-++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 [Metacircular Evaluator Input] >>>
 ((lambda (x) (* x x x)) 11)
@@ -1768,7 +1832,7 @@ Body:
 Finished evaluating: ((lambda (x) (* x x x)) 11)
 
 [Metacircular Evaluator Output] >>> 1331
-++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 [Metacircular Evaluator Input] >>>
 (delay ((lambda (x) (* x x x)) 11))
@@ -1777,7 +1841,7 @@ Starting to evaluate: (delay ((lambda (x) (* x x x)) 11))
 Finished evaluating: (delay ((lambda (x) (* x x x)) 11))
 
 [Metacircular Evaluator Output] >>> (lambda () ((lambda (x) (* x x x)) 11))
-++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 [Metacircular Evaluator Input] >>>
 ((lambda () ((lambda (x) (* x x x)) 11)))
@@ -1796,7 +1860,7 @@ Body:
 Finished evaluating: ((lambda () ((lambda (x) (* x x x)) 11)))
 
 [Metacircular Evaluator Output] >>> 1331
-++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 [Metacircular Evaluator Input] >>>
 (delay ((lambda (x) (* x x x)) 11))
@@ -1805,7 +1869,7 @@ Starting to evaluate: (delay ((lambda (x) (* x x x)) 11))
 Finished evaluating: (delay ((lambda (x) (* x x x)) 11))
 
 [Metacircular Evaluator Output] >>> (lambda () ((lambda (x) (* x x x)) 11))
-++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 [Metacircular Evaluator Input] >>>
 (force (delay ((lambda (x) (* x x x)) 11)))
@@ -1824,7 +1888,7 @@ Body:
 Finished evaluating: (force (delay ((lambda (x) (* x x x)) 11)))
 
 [Metacircular Evaluator Output] >>> 1331
-++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 [Metacircular Evaluator Input] >>>
 (force (delay (force (delay b))))
@@ -1843,18 +1907,17 @@ Body:
 Finished evaluating: (force (delay (force (delay b))))
 
 [Metacircular Evaluator Output] >>> 69
-++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 [Metacircular Evaluator Input] >>>
 (define the-empty-stream '())
-Starting to evaluate: (define the-empty-stream (quote ()))
+(define (stream-empty? s)
+	(if (eq? s the-empty-stream)
+		true
+		false
+	)
+)
 
-Finished evaluating: (define the-empty-stream (quote ()))
-
-[Metacircular Evaluator Output] >>> Defined the variable: the-empty-stream
-++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
-[Metacircular Evaluator Input] >>>
 (define (stream-enumerate-interval low high)
 	(if (> low high)
 		the-empty-stream
@@ -1864,6 +1927,65 @@ Finished evaluating: (define the-empty-stream (quote ()))
 		)
 	)
 )
+
+(define (add-streams s1 s2)
+	(if (stream-empty? s2)
+		s1
+		(if (stream-empty? s1)
+			s2
+			(cons-stream
+				(+ (stream-car s1) (stream-car s2))
+				(add-streams (stream-cdr s1) (stream-cdr s2))
+			)
+		)
+	)	
+)
+
+(define stream-of-five-elements (stream-enumerate-interval 5 9))
+stream-of-five-elements
+(stream-cdr stream-of-five-elements)
+(stream-cdr (stream-cdr stream-of-five-elements))
+(stream-cdr (stream-cdr (stream-cdr stream-of-five-elements)))
+(stream-cdr (stream-cdr (stream-cdr (stream-cdr stream-of-five-elements))))
+(stream-cdr (stream-cdr (stream-cdr (stream-cdr (stream-cdr stream-of-five-elements)))))
+
+(stream-car stream-of-five-elements)
+(stream-car (stream-cdr stream-of-five-elements))
+(stream-car (stream-cdr (stream-cdr stream-of-five-elements)))
+(stream-car (stream-cdr (stream-cdr (stream-cdr stream-of-five-elements))))
+(stream-car (stream-cdr (stream-cdr (stream-cdr (stream-cdr stream-of-five-elements)))))
+
+(define one-to-six (stream-enumerate-interval 1 6))
+(define eleven-to-sixteen (stream-enumerate-interval 11 16))
+(define sum-stream (add-streams one-to-six eleven-to-sixteen))
+sum-stream
+(stream-car sum-stream)
+(stream-car (stream-cdr sum-stream))
+(stream-car (stream-cdr (stream-cdr sum-stream)))
+(stream-car (stream-cdr (stream-cdr (stream-cdr sum-stream))))
+(stream-car (stream-cdr (stream-cdr (stream-cdr (stream-cdr sum-stream)))))
+(stream-car (stream-cdr (stream-cdr (stream-cdr (stream-cdr (stream-cdr sum-stream))))))
+Starting to evaluate: (define the-empty-stream (quote ()))
+
+Finished evaluating: (define the-empty-stream (quote ()))
+
+[Metacircular Evaluator Output] >>> Defined the variable: the-empty-stream
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (define (stream-empty? s) (if (eq? s the-empty-stream) true false))
+Making procedure with: 
+Parameters:
+(s)
+Body:
+((if (eq? s the-empty-stream) true false))
+
+Finished evaluating: (define (stream-empty? s) (if (eq? s the-empty-stream) true false))
+
+[Metacircular Evaluator Output] >>> Defined the variable: stream-empty?
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
 Starting to evaluate: (define (stream-enumerate-interval low high) (if (> low high) the-empty-stream (cons-stream low (stream-enumerate-interval (+ low 1) high))))
 Making procedure with: 
 Parameters:
@@ -1874,240 +1996,546 @@ Body:
 Finished evaluating: (define (stream-enumerate-interval low high) (if (> low high) the-empty-stream (cons-stream low (stream-enumerate-interval (+ low 1) high))))
 
 [Metacircular Evaluator Output] >>> Defined the variable: stream-enumerate-interval
-++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 [Metacircular Evaluator Input] >>>
-(define stream-of-five-elements (stream-enumerate-interval 5 9))
+Starting to evaluate: (define (add-streams s1 s2) (if (stream-empty? s2) s1 (if (stream-empty? s1) s2 (cons-stream (+ (stream-car s1) (stream-car s2)) (add-streams (stream-cdr s1) (stream-cdr s2))))))
+Making procedure with: 
+Parameters:
+(s1 s2)
+Body:
+((if (stream-empty? s2) s1 (if (stream-empty? s1) s2 (cons-stream (+ (stream-car s1) (stream-car s2)) (add-streams (stream-cdr s1) (stream-cdr s2))))))
+
+Finished evaluating: (define (add-streams s1 s2) (if (stream-empty? s2) s1 (if (stream-empty? s1) s2 (cons-stream (+ (stream-car s1) (stream-car s2)) (add-streams (stream-cdr s1) (stream-cdr s2))))))
+
+[Metacircular Evaluator Output] >>> Defined the variable: add-streams
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
 Starting to evaluate: (define stream-of-five-elements (stream-enumerate-interval 5 9))
 
 Finished evaluating: (define stream-of-five-elements (stream-enumerate-interval 5 9))
 
 [Metacircular Evaluator Output] >>> Defined the variable: stream-of-five-elements
-++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 [Metacircular Evaluator Input] >>>
-stream-of-five-elements
 Starting to evaluate: stream-of-five-elements
 
 Finished evaluating: stream-of-five-elements
 
-[Metacircular Evaluator Output] >>> (5 (lambda () (stream-enumerate-interval 6 9)))
-++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+[Metacircular Evaluator Output] >>> (stream-object 5 (lambda () (stream-enumerate-interval (+ 5 1) 9)))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 [Metacircular Evaluator Input] >>>
-(stream-cdr stream-of-five-elements)
 Starting to evaluate: (stream-cdr stream-of-five-elements)
 Making procedure with: 
 Parameters:
 ()
 Body:
-((stream-enumerate-interval 6 9))
+((stream-enumerate-interval (+ 5 1) 9))
 
 Finished evaluating: (stream-cdr stream-of-five-elements)
 
-[Metacircular Evaluator Output] >>> (6 (lambda () (stream-enumerate-interval 7 9)))
-++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+[Metacircular Evaluator Output] >>> (stream-object 6 (lambda () (stream-enumerate-interval (+ 6 1) 9)))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 [Metacircular Evaluator Input] >>>
-(stream-cdr (stream-cdr stream-of-five-elements))
 Starting to evaluate: (stream-cdr (stream-cdr stream-of-five-elements))
 Making procedure with: 
 Parameters:
 ()
 Body:
-((stream-enumerate-interval 6 9))
+((stream-enumerate-interval (+ 5 1) 9))
 Making procedure with: 
 Parameters:
 ()
 Body:
-((stream-enumerate-interval 7 9))
+((stream-enumerate-interval (+ 6 1) 9))
 
 Finished evaluating: (stream-cdr (stream-cdr stream-of-five-elements))
 
-[Metacircular Evaluator Output] >>> (7 (lambda () (stream-enumerate-interval 8 9)))
-++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+[Metacircular Evaluator Output] >>> (stream-object 7 (lambda () (stream-enumerate-interval (+ 7 1) 9)))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 [Metacircular Evaluator Input] >>>
-(stream-cdr (stream-cdr (stream-cdr stream-of-five-elements)))
 Starting to evaluate: (stream-cdr (stream-cdr (stream-cdr stream-of-five-elements)))
 Making procedure with: 
 Parameters:
 ()
 Body:
-((stream-enumerate-interval 6 9))
+((stream-enumerate-interval (+ 5 1) 9))
 Making procedure with: 
 Parameters:
 ()
 Body:
-((stream-enumerate-interval 7 9))
+((stream-enumerate-interval (+ 6 1) 9))
 Making procedure with: 
 Parameters:
 ()
 Body:
-((stream-enumerate-interval 8 9))
+((stream-enumerate-interval (+ 7 1) 9))
 
 Finished evaluating: (stream-cdr (stream-cdr (stream-cdr stream-of-five-elements)))
 
-[Metacircular Evaluator Output] >>> (8 (lambda () (stream-enumerate-interval 9 9)))
-++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+[Metacircular Evaluator Output] >>> (stream-object 8 (lambda () (stream-enumerate-interval (+ 8 1) 9)))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 [Metacircular Evaluator Input] >>>
-(stream-cdr (stream-cdr (stream-cdr (stream-cdr stream-of-five-elements))))
 Starting to evaluate: (stream-cdr (stream-cdr (stream-cdr (stream-cdr stream-of-five-elements))))
 Making procedure with: 
 Parameters:
 ()
 Body:
-((stream-enumerate-interval 6 9))
+((stream-enumerate-interval (+ 5 1) 9))
 Making procedure with: 
 Parameters:
 ()
 Body:
-((stream-enumerate-interval 7 9))
+((stream-enumerate-interval (+ 6 1) 9))
 Making procedure with: 
 Parameters:
 ()
 Body:
-((stream-enumerate-interval 8 9))
+((stream-enumerate-interval (+ 7 1) 9))
 Making procedure with: 
 Parameters:
 ()
 Body:
-((stream-enumerate-interval 9 9))
+((stream-enumerate-interval (+ 8 1) 9))
 
 Finished evaluating: (stream-cdr (stream-cdr (stream-cdr (stream-cdr stream-of-five-elements))))
 
-[Metacircular Evaluator Output] >>> (9 (lambda () (stream-enumerate-interval 10 9)))
-++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+[Metacircular Evaluator Output] >>> (stream-object 9 (lambda () (stream-enumerate-interval (+ 9 1) 9)))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 [Metacircular Evaluator Input] >>>
-(stream-cdr (stream-cdr (stream-cdr (stream-cdr (stream-cdr stream-of-five-elements)))))
 Starting to evaluate: (stream-cdr (stream-cdr (stream-cdr (stream-cdr (stream-cdr stream-of-five-elements)))))
 Making procedure with: 
 Parameters:
 ()
 Body:
-((stream-enumerate-interval 6 9))
+((stream-enumerate-interval (+ 5 1) 9))
 Making procedure with: 
 Parameters:
 ()
 Body:
-((stream-enumerate-interval 7 9))
+((stream-enumerate-interval (+ 6 1) 9))
 Making procedure with: 
 Parameters:
 ()
 Body:
-((stream-enumerate-interval 8 9))
+((stream-enumerate-interval (+ 7 1) 9))
 Making procedure with: 
 Parameters:
 ()
 Body:
-((stream-enumerate-interval 9 9))
+((stream-enumerate-interval (+ 8 1) 9))
 Making procedure with: 
 Parameters:
 ()
 Body:
-((stream-enumerate-interval 10 9))
+((stream-enumerate-interval (+ 9 1) 9))
 
 Finished evaluating: (stream-cdr (stream-cdr (stream-cdr (stream-cdr (stream-cdr stream-of-five-elements)))))
 
 [Metacircular Evaluator Output] >>> ()
-++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 [Metacircular Evaluator Input] >>>
-(stream-car stream-of-five-elements)
 Starting to evaluate: (stream-car stream-of-five-elements)
 
 Finished evaluating: (stream-car stream-of-five-elements)
 
 [Metacircular Evaluator Output] >>> 5
-++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 [Metacircular Evaluator Input] >>>
-(stream-car (stream-cdr stream-of-five-elements))
 Starting to evaluate: (stream-car (stream-cdr stream-of-five-elements))
 Making procedure with: 
 Parameters:
 ()
 Body:
-((stream-enumerate-interval 6 9))
+((stream-enumerate-interval (+ 5 1) 9))
 
 Finished evaluating: (stream-car (stream-cdr stream-of-five-elements))
 
 [Metacircular Evaluator Output] >>> 6
-++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 [Metacircular Evaluator Input] >>>
-(stream-car (stream-cdr (stream-cdr stream-of-five-elements)))
 Starting to evaluate: (stream-car (stream-cdr (stream-cdr stream-of-five-elements)))
 Making procedure with: 
 Parameters:
 ()
 Body:
-((stream-enumerate-interval 6 9))
+((stream-enumerate-interval (+ 5 1) 9))
 Making procedure with: 
 Parameters:
 ()
 Body:
-((stream-enumerate-interval 7 9))
+((stream-enumerate-interval (+ 6 1) 9))
 
 Finished evaluating: (stream-car (stream-cdr (stream-cdr stream-of-five-elements)))
 
 [Metacircular Evaluator Output] >>> 7
-++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 [Metacircular Evaluator Input] >>>
-(stream-car (stream-cdr (stream-cdr (stream-cdr stream-of-five-elements))))
 Starting to evaluate: (stream-car (stream-cdr (stream-cdr (stream-cdr stream-of-five-elements))))
 Making procedure with: 
 Parameters:
 ()
 Body:
-((stream-enumerate-interval 6 9))
+((stream-enumerate-interval (+ 5 1) 9))
 Making procedure with: 
 Parameters:
 ()
 Body:
-((stream-enumerate-interval 7 9))
+((stream-enumerate-interval (+ 6 1) 9))
 Making procedure with: 
 Parameters:
 ()
 Body:
-((stream-enumerate-interval 8 9))
+((stream-enumerate-interval (+ 7 1) 9))
 
 Finished evaluating: (stream-car (stream-cdr (stream-cdr (stream-cdr stream-of-five-elements))))
 
 [Metacircular Evaluator Output] >>> 8
-++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 [Metacircular Evaluator Input] >>>
-(stream-car (stream-cdr (stream-cdr (stream-cdr (stream-cdr stream-of-five-elements)))))
 Starting to evaluate: (stream-car (stream-cdr (stream-cdr (stream-cdr (stream-cdr stream-of-five-elements)))))
 Making procedure with: 
 Parameters:
 ()
 Body:
-((stream-enumerate-interval 6 9))
+((stream-enumerate-interval (+ 5 1) 9))
 Making procedure with: 
 Parameters:
 ()
 Body:
-((stream-enumerate-interval 7 9))
+((stream-enumerate-interval (+ 6 1) 9))
 Making procedure with: 
 Parameters:
 ()
 Body:
-((stream-enumerate-interval 8 9))
+((stream-enumerate-interval (+ 7 1) 9))
 Making procedure with: 
 Parameters:
 ()
 Body:
-((stream-enumerate-interval 9 9))
+((stream-enumerate-interval (+ 8 1) 9))
 
 Finished evaluating: (stream-car (stream-cdr (stream-cdr (stream-cdr (stream-cdr stream-of-five-elements)))))
 
 [Metacircular Evaluator Output] >>> 9
-++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (define one-to-six (stream-enumerate-interval 1 6))
+
+Finished evaluating: (define one-to-six (stream-enumerate-interval 1 6))
+
+[Metacircular Evaluator Output] >>> Defined the variable: one-to-six
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (define eleven-to-sixteen (stream-enumerate-interval 11 16))
+
+Finished evaluating: (define eleven-to-sixteen (stream-enumerate-interval 11 16))
+
+[Metacircular Evaluator Output] >>> Defined the variable: eleven-to-sixteen
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (define sum-stream (add-streams one-to-six eleven-to-sixteen))
+
+Finished evaluating: (define sum-stream (add-streams one-to-six eleven-to-sixteen))
+
+[Metacircular Evaluator Output] >>> Defined the variable: sum-stream
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: sum-stream
+
+Finished evaluating: sum-stream
+
+[Metacircular Evaluator Output] >>> (stream-object 12 (lambda () (add-streams (stream-cdr (stream-object 1 (lambda () (stream-enumerate-interval (+ 1 1) 6)))) (stream-cdr (stream-object 11 (lambda () (stream-enumerate-interval (+ 11 1) 16)))))))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (stream-car sum-stream)
+
+Finished evaluating: (stream-car sum-stream)
+
+[Metacircular Evaluator Output] >>> 12
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (stream-car (stream-cdr sum-stream))
+Making procedure with: 
+Parameters:
+()
+Body:
+((add-streams (stream-cdr (stream-object 1 (lambda () (stream-enumerate-interval (+ 1 1) 6)))) (stream-cdr (stream-object 11 (lambda () (stream-enumerate-interval (+ 11 1) 16))))))
+Making procedure with: 
+Parameters:
+()
+Body:
+((stream-enumerate-interval (+ 1 1) 6))
+Making procedure with: 
+Parameters:
+()
+Body:
+((stream-enumerate-interval (+ 11 1) 16))
+
+Finished evaluating: (stream-car (stream-cdr sum-stream))
+
+[Metacircular Evaluator Output] >>> 14
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (stream-car (stream-cdr (stream-cdr sum-stream)))
+Making procedure with: 
+Parameters:
+()
+Body:
+((add-streams (stream-cdr (stream-object 1 (lambda () (stream-enumerate-interval (+ 1 1) 6)))) (stream-cdr (stream-object 11 (lambda () (stream-enumerate-interval (+ 11 1) 16))))))
+Making procedure with: 
+Parameters:
+()
+Body:
+((stream-enumerate-interval (+ 1 1) 6))
+Making procedure with: 
+Parameters:
+()
+Body:
+((stream-enumerate-interval (+ 11 1) 16))
+Making procedure with: 
+Parameters:
+()
+Body:
+((add-streams (stream-cdr (stream-object 2 (lambda () (stream-enumerate-interval (+ 2 1) 6)))) (stream-cdr (stream-object 12 (lambda () (stream-enumerate-interval (+ 12 1) 16))))))
+Making procedure with: 
+Parameters:
+()
+Body:
+((stream-enumerate-interval (+ 2 1) 6))
+Making procedure with: 
+Parameters:
+()
+Body:
+((stream-enumerate-interval (+ 12 1) 16))
+
+Finished evaluating: (stream-car (stream-cdr (stream-cdr sum-stream)))
+
+[Metacircular Evaluator Output] >>> 16
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (stream-car (stream-cdr (stream-cdr (stream-cdr sum-stream))))
+Making procedure with: 
+Parameters:
+()
+Body:
+((add-streams (stream-cdr (stream-object 1 (lambda () (stream-enumerate-interval (+ 1 1) 6)))) (stream-cdr (stream-object 11 (lambda () (stream-enumerate-interval (+ 11 1) 16))))))
+Making procedure with: 
+Parameters:
+()
+Body:
+((stream-enumerate-interval (+ 1 1) 6))
+Making procedure with: 
+Parameters:
+()
+Body:
+((stream-enumerate-interval (+ 11 1) 16))
+Making procedure with: 
+Parameters:
+()
+Body:
+((add-streams (stream-cdr (stream-object 2 (lambda () (stream-enumerate-interval (+ 2 1) 6)))) (stream-cdr (stream-object 12 (lambda () (stream-enumerate-interval (+ 12 1) 16))))))
+Making procedure with: 
+Parameters:
+()
+Body:
+((stream-enumerate-interval (+ 2 1) 6))
+Making procedure with: 
+Parameters:
+()
+Body:
+((stream-enumerate-interval (+ 12 1) 16))
+Making procedure with: 
+Parameters:
+()
+Body:
+((add-streams (stream-cdr (stream-object 3 (lambda () (stream-enumerate-interval (+ 3 1) 6)))) (stream-cdr (stream-object 13 (lambda () (stream-enumerate-interval (+ 13 1) 16))))))
+Making procedure with: 
+Parameters:
+()
+Body:
+((stream-enumerate-interval (+ 3 1) 6))
+Making procedure with: 
+Parameters:
+()
+Body:
+((stream-enumerate-interval (+ 13 1) 16))
+
+Finished evaluating: (stream-car (stream-cdr (stream-cdr (stream-cdr sum-stream))))
+
+[Metacircular Evaluator Output] >>> 18
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (stream-car (stream-cdr (stream-cdr (stream-cdr (stream-cdr sum-stream)))))
+Making procedure with: 
+Parameters:
+()
+Body:
+((add-streams (stream-cdr (stream-object 1 (lambda () (stream-enumerate-interval (+ 1 1) 6)))) (stream-cdr (stream-object 11 (lambda () (stream-enumerate-interval (+ 11 1) 16))))))
+Making procedure with: 
+Parameters:
+()
+Body:
+((stream-enumerate-interval (+ 1 1) 6))
+Making procedure with: 
+Parameters:
+()
+Body:
+((stream-enumerate-interval (+ 11 1) 16))
+Making procedure with: 
+Parameters:
+()
+Body:
+((add-streams (stream-cdr (stream-object 2 (lambda () (stream-enumerate-interval (+ 2 1) 6)))) (stream-cdr (stream-object 12 (lambda () (stream-enumerate-interval (+ 12 1) 16))))))
+Making procedure with: 
+Parameters:
+()
+Body:
+((stream-enumerate-interval (+ 2 1) 6))
+Making procedure with: 
+Parameters:
+()
+Body:
+((stream-enumerate-interval (+ 12 1) 16))
+Making procedure with: 
+Parameters:
+()
+Body:
+((add-streams (stream-cdr (stream-object 3 (lambda () (stream-enumerate-interval (+ 3 1) 6)))) (stream-cdr (stream-object 13 (lambda () (stream-enumerate-interval (+ 13 1) 16))))))
+Making procedure with: 
+Parameters:
+()
+Body:
+((stream-enumerate-interval (+ 3 1) 6))
+Making procedure with: 
+Parameters:
+()
+Body:
+((stream-enumerate-interval (+ 13 1) 16))
+Making procedure with: 
+Parameters:
+()
+Body:
+((add-streams (stream-cdr (stream-object 4 (lambda () (stream-enumerate-interval (+ 4 1) 6)))) (stream-cdr (stream-object 14 (lambda () (stream-enumerate-interval (+ 14 1) 16))))))
+Making procedure with: 
+Parameters:
+()
+Body:
+((stream-enumerate-interval (+ 4 1) 6))
+Making procedure with: 
+Parameters:
+()
+Body:
+((stream-enumerate-interval (+ 14 1) 16))
+
+Finished evaluating: (stream-car (stream-cdr (stream-cdr (stream-cdr (stream-cdr sum-stream)))))
+
+[Metacircular Evaluator Output] >>> 20
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (stream-car (stream-cdr (stream-cdr (stream-cdr (stream-cdr (stream-cdr sum-stream))))))
+Making procedure with: 
+Parameters:
+()
+Body:
+((add-streams (stream-cdr (stream-object 1 (lambda () (stream-enumerate-interval (+ 1 1) 6)))) (stream-cdr (stream-object 11 (lambda () (stream-enumerate-interval (+ 11 1) 16))))))
+Making procedure with: 
+Parameters:
+()
+Body:
+((stream-enumerate-interval (+ 1 1) 6))
+Making procedure with: 
+Parameters:
+()
+Body:
+((stream-enumerate-interval (+ 11 1) 16))
+Making procedure with: 
+Parameters:
+()
+Body:
+((add-streams (stream-cdr (stream-object 2 (lambda () (stream-enumerate-interval (+ 2 1) 6)))) (stream-cdr (stream-object 12 (lambda () (stream-enumerate-interval (+ 12 1) 16))))))
+Making procedure with: 
+Parameters:
+()
+Body:
+((stream-enumerate-interval (+ 2 1) 6))
+Making procedure with: 
+Parameters:
+()
+Body:
+((stream-enumerate-interval (+ 12 1) 16))
+Making procedure with: 
+Parameters:
+()
+Body:
+((add-streams (stream-cdr (stream-object 3 (lambda () (stream-enumerate-interval (+ 3 1) 6)))) (stream-cdr (stream-object 13 (lambda () (stream-enumerate-interval (+ 13 1) 16))))))
+Making procedure with: 
+Parameters:
+()
+Body:
+((stream-enumerate-interval (+ 3 1) 6))
+Making procedure with: 
+Parameters:
+()
+Body:
+((stream-enumerate-interval (+ 13 1) 16))
+Making procedure with: 
+Parameters:
+()
+Body:
+((add-streams (stream-cdr (stream-object 4 (lambda () (stream-enumerate-interval (+ 4 1) 6)))) (stream-cdr (stream-object 14 (lambda () (stream-enumerate-interval (+ 14 1) 16))))))
+Making procedure with: 
+Parameters:
+()
+Body:
+((stream-enumerate-interval (+ 4 1) 6))
+Making procedure with: 
+Parameters:
+()
+Body:
+((stream-enumerate-interval (+ 14 1) 16))
+Making procedure with: 
+Parameters:
+()
+Body:
+((add-streams (stream-cdr (stream-object 5 (lambda () (stream-enumerate-interval (+ 5 1) 6)))) (stream-cdr (stream-object 15 (lambda () (stream-enumerate-interval (+ 15 1) 16))))))
+Making procedure with: 
+Parameters:
+()
+Body:
+((stream-enumerate-interval (+ 5 1) 6))
+Making procedure with: 
+Parameters:
+()
+Body:
+((stream-enumerate-interval (+ 15 1) 16))
+
+Finished evaluating: (stream-car (stream-cdr (stream-cdr (stream-cdr (stream-cdr (stream-cdr sum-stream))))))
+
+[Metacircular Evaluator Output] >>> 22
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 [Metacircular Evaluator Input] >>>
 .
