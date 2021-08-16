@@ -337,11 +337,17 @@
 		)
 		((lambda? (force-predicate expression))
 			(APPLY
-					(EVAL (force-predicate expression) env)
-					null
+				(EVAL (force-predicate expression) env)
+				null
 			)
 		)
+		((variable? (force-predicate expression))
+			; Look up the variable first and then force it
+			(EVAL-force (make-force (EVAL (force-predicate expression) env)) env)
+		)
 		(else
+			; Evaluate it anyway
+			; (EVAL (force-predicate expression) env)
 			(error "Invalid force predicate" expression)
 		)
 	)
@@ -541,11 +547,11 @@
 (define (make-procedure parameters body env)
 	; (let ((transformed-body (scan-out-defines body)))
 	(let ((transformed-body body))
-		(displayln "Making procedure with: ")
-		(displayln "Parameters:")
-		(displayln parameters)
-		(displayln "Body:")
-		(displayln transformed-body)
+		; (displayln "Making procedure with: ")
+		; (displayln "Parameters:")
+		; (displayln parameters)
+		; (displayln "Body:")
+		; (displayln transformed-body)
 		(list 'procedure parameters transformed-body env)
 	)
 )
@@ -1721,7 +1727,7 @@
 ; Test Results
 
 Welcome to DrRacket, version 8.1 [cs].
-Language: racket, with debugging; memory limit: 128 MB.
+Language: racket, with debugging; memory limit: 256 MB.
 
 [Metacircular Evaluator Input] >>>
 (define b 69)
@@ -1783,6 +1789,32 @@ q
 	(stream-map (lambda (x) (* x factor)) stream)
 )
 
+(define (stream-ref s n)
+	(if (= n 0)
+		(stream-car s)
+		(stream-ref (stream-cdr s) (- n 1))
+	)
+)
+
+(define (integral delayed-integrand initial-value dt)
+	(define int
+		(cons-stream
+			initial-value
+			(add-streams
+				(scale-stream (force delayed-integrand) dt)
+				int
+			)
+		)
+	)
+	int
+)
+
+(define (solve f y0 dt)
+	(define y (integral (delay dy) y0 dt))
+	(define dy (stream-map f y))
+	y
+)
+
 (define stream-of-five-elements (stream-enumerate-interval 5 9))
 stream-of-five-elements
 (stream-cdr stream-of-five-elements)
@@ -1816,6 +1848,15 @@ scaled-stream
 (stream-car (stream-cdr (stream-cdr (stream-cdr scaled-stream))))
 (stream-car (stream-cdr (stream-cdr (stream-cdr (stream-cdr scaled-stream)))))
 (stream-car (stream-cdr (stream-cdr (stream-cdr (stream-cdr (stream-cdr scaled-stream))))))
+
+(stream-ref (scale-stream sum-stream 4) 0)
+(stream-ref (scale-stream sum-stream 4) 1)
+(stream-ref (scale-stream sum-stream 4) 2)
+(stream-ref (scale-stream sum-stream 4) 3)
+(stream-ref (scale-stream sum-stream 4) 4)
+(stream-ref (scale-stream sum-stream 4) 5)
+
+(define S (solve (lambda (y) y) 1 0.001))
 Starting to evaluate: (define b 69)
 
 Finished evaluating: (define b 69)
@@ -1849,11 +1890,6 @@ Finished evaluating: (delay b)
 
 [Metacircular Evaluator Input] >>>
 Starting to evaluate: ((lambda (x) (* x x x)) 11)
-Making procedure with: 
-Parameters:
-(x)
-Body:
-((* x x x))
 
 Finished evaluating: ((lambda (x) (* x x x)) 11)
 
@@ -1870,16 +1906,6 @@ Finished evaluating: (delay ((lambda (x) (* x x x)) 11))
 
 [Metacircular Evaluator Input] >>>
 Starting to evaluate: ((lambda () ((lambda (x) (* x x x)) 11)))
-Making procedure with: 
-Parameters:
-()
-Body:
-(((lambda (x) (* x x x)) 11))
-Making procedure with: 
-Parameters:
-(x)
-Body:
-((* x x x))
 
 Finished evaluating: ((lambda () ((lambda (x) (* x x x)) 11)))
 
@@ -1888,11 +1914,6 @@ Finished evaluating: ((lambda () ((lambda (x) (* x x x)) 11)))
 
 [Metacircular Evaluator Input] >>>
 Starting to evaluate: (force (delay ((lambda (x) (* x x x)) 11)))
-Making procedure with: 
-Parameters:
-(x)
-Body:
-((* x x x))
 
 Finished evaluating: (force (delay ((lambda (x) (* x x x)) 11)))
 
@@ -1949,11 +1970,6 @@ Finished evaluating: (define the-empty-stream (quote ()))
 
 [Metacircular Evaluator Input] >>>
 Starting to evaluate: (define (stream-empty? s) (if (eq? s the-empty-stream) true false))
-Making procedure with: 
-Parameters:
-(s)
-Body:
-((if (eq? s the-empty-stream) true false))
 
 Finished evaluating: (define (stream-empty? s) (if (eq? s the-empty-stream) true false))
 
@@ -1962,11 +1978,6 @@ Finished evaluating: (define (stream-empty? s) (if (eq? s the-empty-stream) true
 
 [Metacircular Evaluator Input] >>>
 Starting to evaluate: (define (stream-enumerate-interval low high) (if (> low high) the-empty-stream (cons-stream low (stream-enumerate-interval (+ low 1) high))))
-Making procedure with: 
-Parameters:
-(low high)
-Body:
-((if (> low high) the-empty-stream (cons-stream low (stream-enumerate-interval (+ low 1) high))))
 
 Finished evaluating: (define (stream-enumerate-interval low high) (if (> low high) the-empty-stream (cons-stream low (stream-enumerate-interval (+ low 1) high))))
 
@@ -1975,11 +1986,6 @@ Finished evaluating: (define (stream-enumerate-interval low high) (if (> low hig
 
 [Metacircular Evaluator Input] >>>
 Starting to evaluate: (define (add-streams s1 s2) (if (stream-empty? s2) s1 (if (stream-empty? s1) s2 (cons-stream (+ (stream-car s1) (stream-car s2)) (add-streams (stream-cdr s1) (stream-cdr s2))))))
-Making procedure with: 
-Parameters:
-(s1 s2)
-Body:
-((if (stream-empty? s2) s1 (if (stream-empty? s1) s2 (cons-stream (+ (stream-car s1) (stream-car s2)) (add-streams (stream-cdr s1) (stream-cdr s2))))))
 
 Finished evaluating: (define (add-streams s1 s2) (if (stream-empty? s2) s1 (if (stream-empty? s1) s2 (cons-stream (+ (stream-car s1) (stream-car s2)) (add-streams (stream-cdr s1) (stream-cdr s2))))))
 
@@ -1988,11 +1994,6 @@ Finished evaluating: (define (add-streams s1 s2) (if (stream-empty? s2) s1 (if (
 
 [Metacircular Evaluator Input] >>>
 Starting to evaluate: (define (stream-map proc stream) (if (stream-empty? stream) the-empty-stream (cons-stream (proc (stream-car stream)) (stream-map proc (stream-cdr stream)))))
-Making procedure with: 
-Parameters:
-(proc stream)
-Body:
-((if (stream-empty? stream) the-empty-stream (cons-stream (proc (stream-car stream)) (stream-map proc (stream-cdr stream)))))
 
 Finished evaluating: (define (stream-map proc stream) (if (stream-empty? stream) the-empty-stream (cons-stream (proc (stream-car stream)) (stream-map proc (stream-cdr stream)))))
 
@@ -2001,15 +2002,34 @@ Finished evaluating: (define (stream-map proc stream) (if (stream-empty? stream)
 
 [Metacircular Evaluator Input] >>>
 Starting to evaluate: (define (scale-stream stream factor) (stream-map (lambda (x) (* x factor)) stream))
-Making procedure with: 
-Parameters:
-(stream factor)
-Body:
-((stream-map (lambda (x) (* x factor)) stream))
 
 Finished evaluating: (define (scale-stream stream factor) (stream-map (lambda (x) (* x factor)) stream))
 
 [Metacircular Evaluator Output] >>> Defined the variable: scale-stream
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (define (stream-ref s n) (if (= n 0) (stream-car s) (stream-ref (stream-cdr s) (- n 1))))
+
+Finished evaluating: (define (stream-ref s n) (if (= n 0) (stream-car s) (stream-ref (stream-cdr s) (- n 1))))
+
+[Metacircular Evaluator Output] >>> Defined the variable: stream-ref
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (define (integral delayed-integrand initial-value dt) (define int (cons-stream initial-value (add-streams (scale-stream (force delayed-integrand) dt) int))) int)
+
+Finished evaluating: (define (integral delayed-integrand initial-value dt) (define int (cons-stream initial-value (add-streams (scale-stream (force delayed-integrand) dt) int))) int)
+
+[Metacircular Evaluator Output] >>> Defined the variable: integral
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (define (solve f y0 dt) (define y (integral (delay dy) y0 dt)) (define dy (stream-map f y)) y)
+
+Finished evaluating: (define (solve f y0 dt) (define y (integral (delay dy) y0 dt)) (define dy (stream-map f y)) y)
+
+[Metacircular Evaluator Output] >>> Defined the variable: solve
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 [Metacircular Evaluator Input] >>>
@@ -2025,7 +2045,7 @@ Starting to evaluate: stream-of-five-elements
 
 Finished evaluating: stream-of-five-elements
 
-[Metacircular Evaluator Output] >>> #0=(stream-object 5 (delayed-expression #1=(stream-enumerate-interval (+ low 1) high) ({(low . 5) (high . 9)} . #2=({(abs primitive #<procedure:abs>) (assoc primitive #<procedure:assoc>) (car primitive #<procedure:car>) (cadr primitive #<procedure:cadr>) (cdr primitive #<procedure:cdr>) (cons primitive #<procedure:cons>) (display primitive #<procedure:display>) (displayln primitive #<procedure:displayln>) (eq? primitive #<procedure:eq?>) (list primitive #<procedure:list>) (newline primitive #<procedure:newline>) (not primitive #<procedure:not>) (null? primitive #<procedure:null?>) (void primitive #<procedure:void>) (> primitive #<procedure:>>) (< primitive #<procedure:<>) (>= primitive #<procedure:>=>) (<= primitive #<procedure:<=>) (= primitive #<procedure:=>) (+ primitive #<procedure:+>) (- primitive #<procedure:->) (* primitive #<procedure:*>) (/ primitive #<procedure:/>) (true . #t) (false . #f) (b . 69) (q . 86) (the-empty-stream) (stream-empty? procedure (s) ((if (eq? s the-empty-stream) true false)) #2#) (stream-enumerate-interval procedure (low high) ((if (> low high) the-empty-stream (cons-stream low #1#))) #2#) (add-streams procedure (s1 s2) ((if (stream-empty? s2) s1 (if (stream-empty? s1) s2 (cons-stream (+ (stream-car s1) (stream-car s2)) (add-streams (stream-cdr s1) (stream-cdr s2)))))) #2#) (stream-map procedure (proc stream) ((if (stream-empty? stream) the-empty-stream (cons-stream (proc (stream-car stream)) (stream-map proc (stream-cdr stream))))) #2#) (scale-stream procedure (stream factor) ((stream-map (lambda (x) (* x factor)) stream)) #2#) (stream-of-five-elements . #0#)}))))
+[Metacircular Evaluator Output] >>> #0=(stream-object 5 (delayed-expression #1=(stream-enumerate-interval (+ low 1) high) ({(low . 5) (high . 9)} . #2=({(abs primitive #<procedure:abs>) (assoc primitive #<procedure:assoc>) (car primitive #<procedure:car>) (cadr primitive #<procedure:cadr>) (cdr primitive #<procedure:cdr>) (cons primitive #<procedure:cons>) (display primitive #<procedure:display>) (displayln primitive #<procedure:displayln>) (eq? primitive #<procedure:eq?>) (list primitive #<procedure:list>) (newline primitive #<procedure:newline>) (not primitive #<procedure:not>) (null? primitive #<procedure:null?>) (void primitive #<procedure:void>) (> primitive #<procedure:>>) (< primitive #<procedure:<>) (>= primitive #<procedure:>=>) (<= primitive #<procedure:<=>) (= primitive #<procedure:=>) (+ primitive #<procedure:+>) (- primitive #<procedure:->) (* primitive #<procedure:*>) (/ primitive #<procedure:/>) (true . #t) (false . #f) (b . 69) (q . 86) (the-empty-stream) (stream-empty? procedure (s) ((if (eq? s the-empty-stream) true false)) #2#) (stream-enumerate-interval procedure (low high) ((if (> low high) the-empty-stream (cons-stream low #1#))) #2#) (add-streams procedure (s1 s2) ((if (stream-empty? s2) s1 (if (stream-empty? s1) s2 (cons-stream (+ (stream-car s1) (stream-car s2)) (add-streams (stream-cdr s1) (stream-cdr s2)))))) #2#) (stream-map procedure (proc stream) ((if (stream-empty? stream) the-empty-stream (cons-stream (proc (stream-car stream)) (stream-map proc (stream-cdr stream))))) #2#) (scale-stream procedure (stream factor) ((stream-map (lambda (x) (* x factor)) stream)) #2#) (stream-ref procedure (s n) ((if (= n 0) (stream-car s) (stream-ref (stream-cdr s) (- n 1)))) #2#) (integral procedure (delayed-integrand initial-value dt) ((define int (cons-stream initial-value (add-streams (scale-stream (force delayed-integrand) dt) int))) int) #2#) (solve procedure (f y0 dt) ((define y (integral (delay dy) y0 dt)) (define dy (stream-map f y)) y) #2#) (stream-of-five-elements . #0#)}))))
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 [Metacircular Evaluator Input] >>>
@@ -2033,7 +2053,7 @@ Starting to evaluate: (stream-cdr stream-of-five-elements)
 
 Finished evaluating: (stream-cdr stream-of-five-elements)
 
-[Metacircular Evaluator Output] >>> (stream-object 6 (delayed-expression #0=(stream-enumerate-interval (+ low 1) high) ({(low . 6) (high . 9)} . #1=({(abs primitive #<procedure:abs>) (assoc primitive #<procedure:assoc>) (car primitive #<procedure:car>) (cadr primitive #<procedure:cadr>) (cdr primitive #<procedure:cdr>) (cons primitive #<procedure:cons>) (display primitive #<procedure:display>) (displayln primitive #<procedure:displayln>) (eq? primitive #<procedure:eq?>) (list primitive #<procedure:list>) (newline primitive #<procedure:newline>) (not primitive #<procedure:not>) (null? primitive #<procedure:null?>) (void primitive #<procedure:void>) (> primitive #<procedure:>>) (< primitive #<procedure:<>) (>= primitive #<procedure:>=>) (<= primitive #<procedure:<=>) (= primitive #<procedure:=>) (+ primitive #<procedure:+>) (- primitive #<procedure:->) (* primitive #<procedure:*>) (/ primitive #<procedure:/>) (true . #t) (false . #f) (b . 69) (q . 86) (the-empty-stream) (stream-empty? procedure (s) ((if (eq? s the-empty-stream) true false)) #1#) (stream-enumerate-interval procedure (low high) ((if (> low high) the-empty-stream (cons-stream low #0#))) #1#) (add-streams procedure (s1 s2) ((if (stream-empty? s2) s1 (if (stream-empty? s1) s2 (cons-stream (+ (stream-car s1) (stream-car s2)) (add-streams (stream-cdr s1) (stream-cdr s2)))))) #1#) (stream-map procedure (proc stream) ((if (stream-empty? stream) the-empty-stream (cons-stream (proc (stream-car stream)) (stream-map proc (stream-cdr stream))))) #1#) (scale-stream procedure (stream factor) ((stream-map (lambda (x) (* x factor)) stream)) #1#) (stream-of-five-elements stream-object 5 (delayed-expression #0# ({(low . 5) (high . 9)} . #1#)))}))))
+[Metacircular Evaluator Output] >>> (stream-object 6 (delayed-expression #0=(stream-enumerate-interval (+ low 1) high) ({(low . 6) (high . 9)} . #1=({(abs primitive #<procedure:abs>) (assoc primitive #<procedure:assoc>) (car primitive #<procedure:car>) (cadr primitive #<procedure:cadr>) (cdr primitive #<procedure:cdr>) (cons primitive #<procedure:cons>) (display primitive #<procedure:display>) (displayln primitive #<procedure:displayln>) (eq? primitive #<procedure:eq?>) (list primitive #<procedure:list>) (newline primitive #<procedure:newline>) (not primitive #<procedure:not>) (null? primitive #<procedure:null?>) (void primitive #<procedure:void>) (> primitive #<procedure:>>) (< primitive #<procedure:<>) (>= primitive #<procedure:>=>) (<= primitive #<procedure:<=>) (= primitive #<procedure:=>) (+ primitive #<procedure:+>) (- primitive #<procedure:->) (* primitive #<procedure:*>) (/ primitive #<procedure:/>) (true . #t) (false . #f) (b . 69) (q . 86) (the-empty-stream) (stream-empty? procedure (s) ((if (eq? s the-empty-stream) true false)) #1#) (stream-enumerate-interval procedure (low high) ((if (> low high) the-empty-stream (cons-stream low #0#))) #1#) (add-streams procedure (s1 s2) ((if (stream-empty? s2) s1 (if (stream-empty? s1) s2 (cons-stream (+ (stream-car s1) (stream-car s2)) (add-streams (stream-cdr s1) (stream-cdr s2)))))) #1#) (stream-map procedure (proc stream) ((if (stream-empty? stream) the-empty-stream (cons-stream (proc (stream-car stream)) (stream-map proc (stream-cdr stream))))) #1#) (scale-stream procedure (stream factor) ((stream-map (lambda (x) (* x factor)) stream)) #1#) (stream-ref procedure (s n) ((if (= n 0) (stream-car s) (stream-ref (stream-cdr s) (- n 1)))) #1#) (integral procedure (delayed-integrand initial-value dt) ((define int (cons-stream initial-value (add-streams (scale-stream (force delayed-integrand) dt) int))) int) #1#) (solve procedure (f y0 dt) ((define y (integral (delay dy) y0 dt)) (define dy (stream-map f y)) y) #1#) (stream-of-five-elements stream-object 5 (delayed-expression #0# ({(low . 5) (high . 9)} . #1#)))}))))
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 [Metacircular Evaluator Input] >>>
@@ -2041,7 +2061,7 @@ Starting to evaluate: (stream-cdr (stream-cdr stream-of-five-elements))
 
 Finished evaluating: (stream-cdr (stream-cdr stream-of-five-elements))
 
-[Metacircular Evaluator Output] >>> (stream-object 7 (delayed-expression #0=(stream-enumerate-interval (+ low 1) high) ({(low . 7) (high . 9)} . #1=({(abs primitive #<procedure:abs>) (assoc primitive #<procedure:assoc>) (car primitive #<procedure:car>) (cadr primitive #<procedure:cadr>) (cdr primitive #<procedure:cdr>) (cons primitive #<procedure:cons>) (display primitive #<procedure:display>) (displayln primitive #<procedure:displayln>) (eq? primitive #<procedure:eq?>) (list primitive #<procedure:list>) (newline primitive #<procedure:newline>) (not primitive #<procedure:not>) (null? primitive #<procedure:null?>) (void primitive #<procedure:void>) (> primitive #<procedure:>>) (< primitive #<procedure:<>) (>= primitive #<procedure:>=>) (<= primitive #<procedure:<=>) (= primitive #<procedure:=>) (+ primitive #<procedure:+>) (- primitive #<procedure:->) (* primitive #<procedure:*>) (/ primitive #<procedure:/>) (true . #t) (false . #f) (b . 69) (q . 86) (the-empty-stream) (stream-empty? procedure (s) ((if (eq? s the-empty-stream) true false)) #1#) (stream-enumerate-interval procedure (low high) ((if (> low high) the-empty-stream (cons-stream low #0#))) #1#) (add-streams procedure (s1 s2) ((if (stream-empty? s2) s1 (if (stream-empty? s1) s2 (cons-stream (+ (stream-car s1) (stream-car s2)) (add-streams (stream-cdr s1) (stream-cdr s2)))))) #1#) (stream-map procedure (proc stream) ((if (stream-empty? stream) the-empty-stream (cons-stream (proc (stream-car stream)) (stream-map proc (stream-cdr stream))))) #1#) (scale-stream procedure (stream factor) ((stream-map (lambda (x) (* x factor)) stream)) #1#) (stream-of-five-elements stream-object 5 (delayed-expression #0# ({(low . 5) (high . 9)} . #1#)))}))))
+[Metacircular Evaluator Output] >>> (stream-object 7 (delayed-expression #0=(stream-enumerate-interval (+ low 1) high) ({(low . 7) (high . 9)} . #1=({(abs primitive #<procedure:abs>) (assoc primitive #<procedure:assoc>) (car primitive #<procedure:car>) (cadr primitive #<procedure:cadr>) (cdr primitive #<procedure:cdr>) (cons primitive #<procedure:cons>) (display primitive #<procedure:display>) (displayln primitive #<procedure:displayln>) (eq? primitive #<procedure:eq?>) (list primitive #<procedure:list>) (newline primitive #<procedure:newline>) (not primitive #<procedure:not>) (null? primitive #<procedure:null?>) (void primitive #<procedure:void>) (> primitive #<procedure:>>) (< primitive #<procedure:<>) (>= primitive #<procedure:>=>) (<= primitive #<procedure:<=>) (= primitive #<procedure:=>) (+ primitive #<procedure:+>) (- primitive #<procedure:->) (* primitive #<procedure:*>) (/ primitive #<procedure:/>) (true . #t) (false . #f) (b . 69) (q . 86) (the-empty-stream) (stream-empty? procedure (s) ((if (eq? s the-empty-stream) true false)) #1#) (stream-enumerate-interval procedure (low high) ((if (> low high) the-empty-stream (cons-stream low #0#))) #1#) (add-streams procedure (s1 s2) ((if (stream-empty? s2) s1 (if (stream-empty? s1) s2 (cons-stream (+ (stream-car s1) (stream-car s2)) (add-streams (stream-cdr s1) (stream-cdr s2)))))) #1#) (stream-map procedure (proc stream) ((if (stream-empty? stream) the-empty-stream (cons-stream (proc (stream-car stream)) (stream-map proc (stream-cdr stream))))) #1#) (scale-stream procedure (stream factor) ((stream-map (lambda (x) (* x factor)) stream)) #1#) (stream-ref procedure (s n) ((if (= n 0) (stream-car s) (stream-ref (stream-cdr s) (- n 1)))) #1#) (integral procedure (delayed-integrand initial-value dt) ((define int (cons-stream initial-value (add-streams (scale-stream (force delayed-integrand) dt) int))) int) #1#) (solve procedure (f y0 dt) ((define y (integral (delay dy) y0 dt)) (define dy (stream-map f y)) y) #1#) (stream-of-five-elements stream-object 5 (delayed-expression #0# ({(low . 5) (high . 9)} . #1#)))}))))
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 [Metacircular Evaluator Input] >>>
@@ -2049,7 +2069,7 @@ Starting to evaluate: (stream-cdr (stream-cdr (stream-cdr stream-of-five-element
 
 Finished evaluating: (stream-cdr (stream-cdr (stream-cdr stream-of-five-elements)))
 
-[Metacircular Evaluator Output] >>> (stream-object 8 (delayed-expression #0=(stream-enumerate-interval (+ low 1) high) ({(low . 8) (high . 9)} . #1=({(abs primitive #<procedure:abs>) (assoc primitive #<procedure:assoc>) (car primitive #<procedure:car>) (cadr primitive #<procedure:cadr>) (cdr primitive #<procedure:cdr>) (cons primitive #<procedure:cons>) (display primitive #<procedure:display>) (displayln primitive #<procedure:displayln>) (eq? primitive #<procedure:eq?>) (list primitive #<procedure:list>) (newline primitive #<procedure:newline>) (not primitive #<procedure:not>) (null? primitive #<procedure:null?>) (void primitive #<procedure:void>) (> primitive #<procedure:>>) (< primitive #<procedure:<>) (>= primitive #<procedure:>=>) (<= primitive #<procedure:<=>) (= primitive #<procedure:=>) (+ primitive #<procedure:+>) (- primitive #<procedure:->) (* primitive #<procedure:*>) (/ primitive #<procedure:/>) (true . #t) (false . #f) (b . 69) (q . 86) (the-empty-stream) (stream-empty? procedure (s) ((if (eq? s the-empty-stream) true false)) #1#) (stream-enumerate-interval procedure (low high) ((if (> low high) the-empty-stream (cons-stream low #0#))) #1#) (add-streams procedure (s1 s2) ((if (stream-empty? s2) s1 (if (stream-empty? s1) s2 (cons-stream (+ (stream-car s1) (stream-car s2)) (add-streams (stream-cdr s1) (stream-cdr s2)))))) #1#) (stream-map procedure (proc stream) ((if (stream-empty? stream) the-empty-stream (cons-stream (proc (stream-car stream)) (stream-map proc (stream-cdr stream))))) #1#) (scale-stream procedure (stream factor) ((stream-map (lambda (x) (* x factor)) stream)) #1#) (stream-of-five-elements stream-object 5 (delayed-expression #0# ({(low . 5) (high . 9)} . #1#)))}))))
+[Metacircular Evaluator Output] >>> (stream-object 8 (delayed-expression #0=(stream-enumerate-interval (+ low 1) high) ({(low . 8) (high . 9)} . #1=({(abs primitive #<procedure:abs>) (assoc primitive #<procedure:assoc>) (car primitive #<procedure:car>) (cadr primitive #<procedure:cadr>) (cdr primitive #<procedure:cdr>) (cons primitive #<procedure:cons>) (display primitive #<procedure:display>) (displayln primitive #<procedure:displayln>) (eq? primitive #<procedure:eq?>) (list primitive #<procedure:list>) (newline primitive #<procedure:newline>) (not primitive #<procedure:not>) (null? primitive #<procedure:null?>) (void primitive #<procedure:void>) (> primitive #<procedure:>>) (< primitive #<procedure:<>) (>= primitive #<procedure:>=>) (<= primitive #<procedure:<=>) (= primitive #<procedure:=>) (+ primitive #<procedure:+>) (- primitive #<procedure:->) (* primitive #<procedure:*>) (/ primitive #<procedure:/>) (true . #t) (false . #f) (b . 69) (q . 86) (the-empty-stream) (stream-empty? procedure (s) ((if (eq? s the-empty-stream) true false)) #1#) (stream-enumerate-interval procedure (low high) ((if (> low high) the-empty-stream (cons-stream low #0#))) #1#) (add-streams procedure (s1 s2) ((if (stream-empty? s2) s1 (if (stream-empty? s1) s2 (cons-stream (+ (stream-car s1) (stream-car s2)) (add-streams (stream-cdr s1) (stream-cdr s2)))))) #1#) (stream-map procedure (proc stream) ((if (stream-empty? stream) the-empty-stream (cons-stream (proc (stream-car stream)) (stream-map proc (stream-cdr stream))))) #1#) (scale-stream procedure (stream factor) ((stream-map (lambda (x) (* x factor)) stream)) #1#) (stream-ref procedure (s n) ((if (= n 0) (stream-car s) (stream-ref (stream-cdr s) (- n 1)))) #1#) (integral procedure (delayed-integrand initial-value dt) ((define int (cons-stream initial-value (add-streams (scale-stream (force delayed-integrand) dt) int))) int) #1#) (solve procedure (f y0 dt) ((define y (integral (delay dy) y0 dt)) (define dy (stream-map f y)) y) #1#) (stream-of-five-elements stream-object 5 (delayed-expression #0# ({(low . 5) (high . 9)} . #1#)))}))))
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 [Metacircular Evaluator Input] >>>
@@ -2057,7 +2077,7 @@ Starting to evaluate: (stream-cdr (stream-cdr (stream-cdr (stream-cdr stream-of-
 
 Finished evaluating: (stream-cdr (stream-cdr (stream-cdr (stream-cdr stream-of-five-elements))))
 
-[Metacircular Evaluator Output] >>> (stream-object 9 (delayed-expression #0=(stream-enumerate-interval (+ low 1) high) ({(low . 9) (high . 9)} . #1=({(abs primitive #<procedure:abs>) (assoc primitive #<procedure:assoc>) (car primitive #<procedure:car>) (cadr primitive #<procedure:cadr>) (cdr primitive #<procedure:cdr>) (cons primitive #<procedure:cons>) (display primitive #<procedure:display>) (displayln primitive #<procedure:displayln>) (eq? primitive #<procedure:eq?>) (list primitive #<procedure:list>) (newline primitive #<procedure:newline>) (not primitive #<procedure:not>) (null? primitive #<procedure:null?>) (void primitive #<procedure:void>) (> primitive #<procedure:>>) (< primitive #<procedure:<>) (>= primitive #<procedure:>=>) (<= primitive #<procedure:<=>) (= primitive #<procedure:=>) (+ primitive #<procedure:+>) (- primitive #<procedure:->) (* primitive #<procedure:*>) (/ primitive #<procedure:/>) (true . #t) (false . #f) (b . 69) (q . 86) (the-empty-stream) (stream-empty? procedure (s) ((if (eq? s the-empty-stream) true false)) #1#) (stream-enumerate-interval procedure (low high) ((if (> low high) the-empty-stream (cons-stream low #0#))) #1#) (add-streams procedure (s1 s2) ((if (stream-empty? s2) s1 (if (stream-empty? s1) s2 (cons-stream (+ (stream-car s1) (stream-car s2)) (add-streams (stream-cdr s1) (stream-cdr s2)))))) #1#) (stream-map procedure (proc stream) ((if (stream-empty? stream) the-empty-stream (cons-stream (proc (stream-car stream)) (stream-map proc (stream-cdr stream))))) #1#) (scale-stream procedure (stream factor) ((stream-map (lambda (x) (* x factor)) stream)) #1#) (stream-of-five-elements stream-object 5 (delayed-expression #0# ({(low . 5) (high . 9)} . #1#)))}))))
+[Metacircular Evaluator Output] >>> (stream-object 9 (delayed-expression #0=(stream-enumerate-interval (+ low 1) high) ({(low . 9) (high . 9)} . #1=({(abs primitive #<procedure:abs>) (assoc primitive #<procedure:assoc>) (car primitive #<procedure:car>) (cadr primitive #<procedure:cadr>) (cdr primitive #<procedure:cdr>) (cons primitive #<procedure:cons>) (display primitive #<procedure:display>) (displayln primitive #<procedure:displayln>) (eq? primitive #<procedure:eq?>) (list primitive #<procedure:list>) (newline primitive #<procedure:newline>) (not primitive #<procedure:not>) (null? primitive #<procedure:null?>) (void primitive #<procedure:void>) (> primitive #<procedure:>>) (< primitive #<procedure:<>) (>= primitive #<procedure:>=>) (<= primitive #<procedure:<=>) (= primitive #<procedure:=>) (+ primitive #<procedure:+>) (- primitive #<procedure:->) (* primitive #<procedure:*>) (/ primitive #<procedure:/>) (true . #t) (false . #f) (b . 69) (q . 86) (the-empty-stream) (stream-empty? procedure (s) ((if (eq? s the-empty-stream) true false)) #1#) (stream-enumerate-interval procedure (low high) ((if (> low high) the-empty-stream (cons-stream low #0#))) #1#) (add-streams procedure (s1 s2) ((if (stream-empty? s2) s1 (if (stream-empty? s1) s2 (cons-stream (+ (stream-car s1) (stream-car s2)) (add-streams (stream-cdr s1) (stream-cdr s2)))))) #1#) (stream-map procedure (proc stream) ((if (stream-empty? stream) the-empty-stream (cons-stream (proc (stream-car stream)) (stream-map proc (stream-cdr stream))))) #1#) (scale-stream procedure (stream factor) ((stream-map (lambda (x) (* x factor)) stream)) #1#) (stream-ref procedure (s n) ((if (= n 0) (stream-car s) (stream-ref (stream-cdr s) (- n 1)))) #1#) (integral procedure (delayed-integrand initial-value dt) ((define int (cons-stream initial-value (add-streams (scale-stream (force delayed-integrand) dt) int))) int) #1#) (solve procedure (f y0 dt) ((define y (integral (delay dy) y0 dt)) (define dy (stream-map f y)) y) #1#) (stream-of-five-elements stream-object 5 (delayed-expression #0# ({(low . 5) (high . 9)} . #1#)))}))))
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 [Metacircular Evaluator Input] >>>
@@ -2137,7 +2157,7 @@ Starting to evaluate: sum-stream
 
 Finished evaluating: sum-stream
 
-[Metacircular Evaluator Output] >>> #0=(stream-object 12 (delayed-expression #1=(add-streams (stream-cdr s1) (stream-cdr s2)) ({(s1 . #2=(stream-object 1 (delayed-expression #3=(stream-enumerate-interval (+ low 1) high) ({(low . 1) (high . 6)} . #4=({(abs primitive #<procedure:abs>) (assoc primitive #<procedure:assoc>) (car primitive #<procedure:car>) (cadr primitive #<procedure:cadr>) (cdr primitive #<procedure:cdr>) (cons primitive #<procedure:cons>) (display primitive #<procedure:display>) (displayln primitive #<procedure:displayln>) (eq? primitive #<procedure:eq?>) (list primitive #<procedure:list>) (newline primitive #<procedure:newline>) (not primitive #<procedure:not>) (null? primitive #<procedure:null?>) (void primitive #<procedure:void>) (> primitive #<procedure:>>) (< primitive #<procedure:<>) (>= primitive #<procedure:>=>) (<= primitive #<procedure:<=>) (= primitive #<procedure:=>) (+ primitive #<procedure:+>) (- primitive #<procedure:->) (* primitive #<procedure:*>) (/ primitive #<procedure:/>) (true . #t) (false . #f) (b . 69) (q . 86) (the-empty-stream) (stream-empty? procedure (s) ((if (eq? s the-empty-stream) true false)) #4#) (stream-enumerate-interval procedure (low high) ((if (> low high) the-empty-stream (cons-stream low #3#))) #4#) (add-streams procedure (s1 s2) ((if (stream-empty? s2) s1 (if (stream-empty? s1) s2 (cons-stream (+ (stream-car s1) (stream-car s2)) #1#)))) #4#) (stream-map procedure (proc stream) ((if (stream-empty? stream) the-empty-stream (cons-stream (proc (stream-car stream)) (stream-map proc (stream-cdr stream))))) #4#) (scale-stream procedure (stream factor) ((stream-map (lambda (x) (* x factor)) stream)) #4#) (stream-of-five-elements stream-object 5 (delayed-expression #3# ({(low . 5) (high . 9)} . #4#))) (one-to-six . #2#) (eleven-to-sixteen . #5=(stream-object 11 (delayed-expression #3# ({(low . 11) (high . 16)} . #4#)))) (sum-stream . #0#)}))))) (s2 . #5#)} . #4#)))
+[Metacircular Evaluator Output] >>> #0=(stream-object 12 (delayed-expression #1=(add-streams (stream-cdr s1) (stream-cdr s2)) ({(s1 . #2=(stream-object 1 (delayed-expression #3=(stream-enumerate-interval (+ low 1) high) ({(low . 1) (high . 6)} . #4=({(abs primitive #<procedure:abs>) (assoc primitive #<procedure:assoc>) (car primitive #<procedure:car>) (cadr primitive #<procedure:cadr>) (cdr primitive #<procedure:cdr>) (cons primitive #<procedure:cons>) (display primitive #<procedure:display>) (displayln primitive #<procedure:displayln>) (eq? primitive #<procedure:eq?>) (list primitive #<procedure:list>) (newline primitive #<procedure:newline>) (not primitive #<procedure:not>) (null? primitive #<procedure:null?>) (void primitive #<procedure:void>) (> primitive #<procedure:>>) (< primitive #<procedure:<>) (>= primitive #<procedure:>=>) (<= primitive #<procedure:<=>) (= primitive #<procedure:=>) (+ primitive #<procedure:+>) (- primitive #<procedure:->) (* primitive #<procedure:*>) (/ primitive #<procedure:/>) (true . #t) (false . #f) (b . 69) (q . 86) (the-empty-stream) (stream-empty? procedure (s) ((if (eq? s the-empty-stream) true false)) #4#) (stream-enumerate-interval procedure (low high) ((if (> low high) the-empty-stream (cons-stream low #3#))) #4#) (add-streams procedure (s1 s2) ((if (stream-empty? s2) s1 (if (stream-empty? s1) s2 (cons-stream (+ (stream-car s1) (stream-car s2)) #1#)))) #4#) (stream-map procedure (proc stream) ((if (stream-empty? stream) the-empty-stream (cons-stream (proc (stream-car stream)) (stream-map proc (stream-cdr stream))))) #4#) (scale-stream procedure (stream factor) ((stream-map (lambda (x) (* x factor)) stream)) #4#) (stream-ref procedure (s n) ((if (= n 0) (stream-car s) (stream-ref (stream-cdr s) (- n 1)))) #4#) (integral procedure (delayed-integrand initial-value dt) ((define int (cons-stream initial-value (add-streams (scale-stream (force delayed-integrand) dt) int))) int) #4#) (solve procedure (f y0 dt) ((define y (integral (delay dy) y0 dt)) (define dy (stream-map f y)) y) #4#) (stream-of-five-elements stream-object 5 (delayed-expression #3# ({(low . 5) (high . 9)} . #4#))) (one-to-six . #2#) (eleven-to-sixteen . #5=(stream-object 11 (delayed-expression #3# ({(low . 11) (high . 16)} . #4#)))) (sum-stream . #0#)}))))) (s2 . #5#)} . #4#)))
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 [Metacircular Evaluator Input] >>>
@@ -2190,11 +2210,6 @@ Finished evaluating: (stream-car (stream-cdr (stream-cdr (stream-cdr (stream-cdr
 
 [Metacircular Evaluator Input] >>>
 Starting to evaluate: (define scaled-stream (scale-stream one-to-six 2))
-Making procedure with: 
-Parameters:
-(x)
-Body:
-((* x factor))
 
 Finished evaluating: (define scaled-stream (scale-stream one-to-six 2))
 
@@ -2206,7 +2221,7 @@ Starting to evaluate: scaled-stream
 
 Finished evaluating: scaled-stream
 
-[Metacircular Evaluator Output] >>> #0=(stream-object 2 (delayed-expression #1=(stream-map proc (stream-cdr stream)) ({(proc procedure #2=(x) #3=((* x factor)) ({(stream . #4=(stream-object 1 (delayed-expression #5=(stream-enumerate-interval (+ low 1) high) ({(low . 1) (high . 6)} . #6=({(abs primitive #<procedure:abs>) (assoc primitive #<procedure:assoc>) (car primitive #<procedure:car>) (cadr primitive #<procedure:cadr>) (cdr primitive #<procedure:cdr>) (cons primitive #<procedure:cons>) (display primitive #<procedure:display>) (displayln primitive #<procedure:displayln>) (eq? primitive #<procedure:eq?>) (list primitive #<procedure:list>) (newline primitive #<procedure:newline>) (not primitive #<procedure:not>) (null? primitive #<procedure:null?>) (void primitive #<procedure:void>) (> primitive #<procedure:>>) (< primitive #<procedure:<>) (>= primitive #<procedure:>=>) (<= primitive #<procedure:<=>) (= primitive #<procedure:=>) (+ primitive #<procedure:+>) (- primitive #<procedure:->) (* primitive #<procedure:*>) (/ primitive #<procedure:/>) (true . #t) (false . #f) (b . 69) (q . 86) (the-empty-stream) (stream-empty? procedure (s) ((if (eq? s the-empty-stream) true false)) #6#) (stream-enumerate-interval procedure (low high) ((if (> low high) the-empty-stream (cons-stream low #5#))) #6#) (add-streams procedure (s1 s2) ((if (stream-empty? s2) s1 (if (stream-empty? s1) s2 (cons-stream (+ (stream-car s1) (stream-car s2)) #7=(add-streams (stream-cdr s1) (stream-cdr s2)))))) #6#) (stream-map procedure (proc stream) ((if (stream-empty? stream) the-empty-stream (cons-stream (proc (stream-car stream)) #1#))) #6#) (scale-stream procedure (stream factor) ((stream-map (lambda #2# . #3#) stream)) #6#) (stream-of-five-elements stream-object 5 (delayed-expression #5# ({(low . 5) (high . 9)} . #6#))) (one-to-six . #4#) (eleven-to-sixteen . #8=(stream-object 11 (delayed-expression #5# ({(low . 11) (high . 16)} . #6#)))) (sum-stream stream-object 12 (delayed-expression #7# ({(s1 . #4#) (s2 . #8#)} . #6#))) (scaled-stream . #0#)}))))) (factor . 2)} . #6#)) (stream . #4#)} . #6#)))
+[Metacircular Evaluator Output] >>> #0=(stream-object 2 (delayed-expression #1=(stream-map proc (stream-cdr stream)) ({(proc procedure #2=(x) #3=((* x factor)) ({(stream . #4=(stream-object 1 (delayed-expression #5=(stream-enumerate-interval (+ low 1) high) ({(low . 1) (high . 6)} . #6=({(abs primitive #<procedure:abs>) (assoc primitive #<procedure:assoc>) (car primitive #<procedure:car>) (cadr primitive #<procedure:cadr>) (cdr primitive #<procedure:cdr>) (cons primitive #<procedure:cons>) (display primitive #<procedure:display>) (displayln primitive #<procedure:displayln>) (eq? primitive #<procedure:eq?>) (list primitive #<procedure:list>) (newline primitive #<procedure:newline>) (not primitive #<procedure:not>) (null? primitive #<procedure:null?>) (void primitive #<procedure:void>) (> primitive #<procedure:>>) (< primitive #<procedure:<>) (>= primitive #<procedure:>=>) (<= primitive #<procedure:<=>) (= primitive #<procedure:=>) (+ primitive #<procedure:+>) (- primitive #<procedure:->) (* primitive #<procedure:*>) (/ primitive #<procedure:/>) (true . #t) (false . #f) (b . 69) (q . 86) (the-empty-stream) (stream-empty? procedure (s) ((if (eq? s the-empty-stream) true false)) #6#) (stream-enumerate-interval procedure (low high) ((if (> low high) the-empty-stream (cons-stream low #5#))) #6#) (add-streams procedure (s1 s2) ((if (stream-empty? s2) s1 (if (stream-empty? s1) s2 (cons-stream (+ (stream-car s1) (stream-car s2)) #7=(add-streams (stream-cdr s1) (stream-cdr s2)))))) #6#) (stream-map procedure (proc stream) ((if (stream-empty? stream) the-empty-stream (cons-stream (proc (stream-car stream)) #1#))) #6#) (scale-stream procedure (stream factor) ((stream-map (lambda #2# . #3#) stream)) #6#) (stream-ref procedure (s n) ((if (= n 0) (stream-car s) (stream-ref (stream-cdr s) (- n 1)))) #6#) (integral procedure (delayed-integrand initial-value dt) ((define int (cons-stream initial-value (add-streams (scale-stream (force delayed-integrand) dt) int))) int) #6#) (solve procedure (f y0 dt) ((define y (integral (delay dy) y0 dt)) (define dy (stream-map f y)) y) #6#) (stream-of-five-elements stream-object 5 (delayed-expression #5# ({(low . 5) (high . 9)} . #6#))) (one-to-six . #4#) (eleven-to-sixteen . #8=(stream-object 11 (delayed-expression #5# ({(low . 11) (high . 16)} . #6#)))) (sum-stream stream-object 12 (delayed-expression #7# ({(s1 . #4#) (s2 . #8#)} . #6#))) (scaled-stream . #0#)}))))) (factor . 2)} . #6#)) (stream . #4#)} . #6#)))
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 [Metacircular Evaluator Input] >>>
@@ -2258,4 +2273,198 @@ Finished evaluating: (stream-car (stream-cdr (stream-cdr (stream-cdr (stream-cdr
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 [Metacircular Evaluator Input] >>>
-.
+Starting to evaluate: (stream-ref (scale-stream sum-stream 4) 0)
+
+Finished evaluating: (stream-ref (scale-stream sum-stream 4) 0)
+
+[Metacircular Evaluator Output] >>> 48
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (stream-ref (scale-stream sum-stream 4) 1)
+
+Finished evaluating: (stream-ref (scale-stream sum-stream 4) 1)
+
+[Metacircular Evaluator Output] >>> 56
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (stream-ref (scale-stream sum-stream 4) 2)
+
+Finished evaluating: (stream-ref (scale-stream sum-stream 4) 2)
+
+[Metacircular Evaluator Output] >>> 64
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (stream-ref (scale-stream sum-stream 4) 3)
+
+Finished evaluating: (stream-ref (scale-stream sum-stream 4) 3)
+
+[Metacircular Evaluator Output] >>> 72
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (stream-ref (scale-stream sum-stream 4) 4)
+
+Finished evaluating: (stream-ref (scale-stream sum-stream 4) 4)
+
+[Metacircular Evaluator Output] >>> 80
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (stream-ref (scale-stream sum-stream 4) 5)
+
+Finished evaluating: (stream-ref (scale-stream sum-stream 4) 5)
+
+[Metacircular Evaluator Output] >>> 88
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+Starting to evaluate: (define S (solve (lambda (y) y) 1 0.001))
+
+Finished evaluating: (define S (solve (lambda (y) y) 1 0.001))
+
+[Metacircular Evaluator Output] >>> Defined the variable: S
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+S
+Starting to evaluate: S
+
+Finished evaluating: S
+
+[Metacircular Evaluator Output] >>> #0=(stream-object 1 (delayed-expression #1=(add-streams (scale-stream (force delayed-integrand) dt) int) ({(delayed-integrand delayed-expression dy ({(f . #2=(procedure (y) (y) #3=({(abs primitive #<procedure:abs>) (assoc primitive #<procedure:assoc>) (car primitive #<procedure:car>) (cadr primitive #<procedure:cadr>) (cdr primitive #<procedure:cdr>) (cons primitive #<procedure:cons>) (display primitive #<procedure:display>) (displayln primitive #<procedure:displayln>) (eq? primitive #<procedure:eq?>) (list primitive #<procedure:list>) (newline primitive #<procedure:newline>) (not primitive #<procedure:not>) (null? primitive #<procedure:null?>) (void primitive #<procedure:void>) (> primitive #<procedure:>>) (< primitive #<procedure:<>) (>= primitive #<procedure:>=>) (<= primitive #<procedure:<=>) (= primitive #<procedure:=>) (+ primitive #<procedure:+>) (- primitive #<procedure:->) (* primitive #<procedure:*>) (/ primitive #<procedure:/>) (true . #t) (false . #f) (b . 69) (q . 86) (the-empty-stream) (stream-empty? procedure (s) ((if (eq? s the-empty-stream) true false)) #3#) (stream-enumerate-interval procedure (low high) ((if (> low high) the-empty-stream (cons-stream low #4=(stream-enumerate-interval (+ low 1) high)))) #3#) (add-streams procedure (s1 s2) ((if (stream-empty? s2) s1 (if (stream-empty? s1) s2 (cons-stream (+ (stream-car s1) (stream-car s2)) #5=(add-streams (stream-cdr s1) (stream-cdr s2)))))) #3#) (stream-map procedure (proc stream) ((if (stream-empty? stream) the-empty-stream (cons-stream (proc (stream-car stream)) #6=(stream-map proc (stream-cdr stream))))) #3#) (scale-stream procedure (stream factor) ((stream-map (lambda #7=(x) . #8=((* x factor))) stream)) #3#) (stream-ref procedure (s n) ((if (= n 0) (stream-car s) (stream-ref (stream-cdr s) (- n 1)))) #3#) (integral procedure (delayed-integrand initial-value dt) ((define int (cons-stream initial-value #1#)) int) #3#) (solve procedure (f y0 dt) ((define y (integral (delay dy) y0 dt)) (define dy (stream-map f y)) y) #3#) (stream-of-five-elements stream-object 5 (delayed-expression #4# ({(low . 5) (high . 9)} . #3#))) (one-to-six . #9=(stream-object 1 (delayed-expression #4# ({(low . 1) (high . 6)} . #3#)))) (eleven-to-sixteen . #10=(stream-object 11 (delayed-expression #4# ({(low . 11) (high . 16)} . #3#)))) (sum-stream stream-object 12 (delayed-expression #5# ({(s1 . #9#) (s2 . #10#)} . #3#))) (scaled-stream stream-object 2 (delayed-expression #6# ({(proc procedure #7# #8# ({(stream . #9#) (factor . 2)} . #3#)) (stream . #9#)} . #3#))) (S . #0#)}))) (y0 . 1) (dt . 0.001) (y . #0#) (dy stream-object 1 (delayed-expression #6# ({(proc . #2#) (stream . #0#)} . #3#)))} . #3#)) (initial-value . 1) (dt . 0.001) (int . #0#)} . #3#)))
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+(stream-ref S 0)
+Starting to evaluate: (stream-ref S 0)
+
+Finished evaluating: (stream-ref S 0)
+
+[Metacircular Evaluator Output] >>> 1
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+(stream-ref S 1)
+Starting to evaluate: (stream-ref S 1)
+
+Finished evaluating: (stream-ref S 1)
+
+[Metacircular Evaluator Output] >>> 1.001
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+(stream-ref S 2)
+Starting to evaluate: (stream-ref S 2)
+
+Finished evaluating: (stream-ref S 2)
+
+[Metacircular Evaluator Output] >>> 1.002001
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+(stream-ref S 3)
+Starting to evaluate: (stream-ref S 3)
+
+Finished evaluating: (stream-ref S 3)
+
+[Metacircular Evaluator Output] >>> 1.003003001
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+(stream-ref S 4)
+Starting to evaluate: (stream-ref S 4)
+
+Finished evaluating: (stream-ref S 4)
+
+[Metacircular Evaluator Output] >>> 1.004006004001
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+(stream-ref S 5)
+Starting to evaluate: (stream-ref S 5)
+
+Finished evaluating: (stream-ref S 5)
+
+[Metacircular Evaluator Output] >>> 1.005010010005001
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+(stream-ref S 6)
+Starting to evaluate: (stream-ref S 6)
+
+Finished evaluating: (stream-ref S 6)
+
+[Metacircular Evaluator Output] >>> 1.006015020015006
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+(stream-ref S 7)
+Starting to evaluate: (stream-ref S 7)
+
+Finished evaluating: (stream-ref S 7)
+
+[Metacircular Evaluator Output] >>> 1.007021035035021
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+(stream-ref S 8)
+Starting to evaluate: (stream-ref S 8)
+
+Finished evaluating: (stream-ref S 8)
+
+[Metacircular Evaluator Output] >>> 1.008028056070056
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+(stream-ref S 9)
+Starting to evaluate: (stream-ref S 9)
+
+Finished evaluating: (stream-ref S 9)
+
+[Metacircular Evaluator Output] >>> 1.009036084126126
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+(stream-ref S 10)
+Starting to evaluate: (stream-ref S 10)
+
+Finished evaluating: (stream-ref S 10)
+
+[Metacircular Evaluator Output] >>> 1.0100451202102523
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+(stream-ref S 11)
+Starting to evaluate: (stream-ref S 11)
+
+Finished evaluating: (stream-ref S 11)
+
+[Metacircular Evaluator Output] >>> 1.0110551653304625
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+(stream-ref S 12)
+Starting to evaluate: (stream-ref S 12)
+
+Finished evaluating: (stream-ref S 12)
+
+[Metacircular Evaluator Output] >>> 1.0120662204957929
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+(stream-ref S 15)
+Starting to evaluate: (stream-ref S 15)
+
+Finished evaluating: (stream-ref S 15)
+
+[Metacircular Evaluator Output] >>> 1.015105456368008
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+[Metacircular Evaluator Input] >>>
+(stream-ref S 20)
+Starting to evaluate: (stream-ref S 20)
+.. Interactions disabled; out of memory
+
