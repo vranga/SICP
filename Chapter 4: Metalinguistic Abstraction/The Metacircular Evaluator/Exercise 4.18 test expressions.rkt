@@ -59,6 +59,32 @@ q
 	(stream-map (lambda (x) (* x factor)) stream)
 )
 
+(define (stream-ref s n)
+	(if (= n 0)
+		(stream-car s)
+		(stream-ref (stream-cdr s) (- n 1))
+	)
+)
+
+(define (integral delayed-integrand initial-value dt)
+	(define int
+		(cons-stream
+			initial-value
+			(add-streams
+				(scale-stream (force delayed-integrand) dt)
+				int
+			)
+		)
+	)
+	int
+)
+
+(define (solve f y0 dt)
+	(define y (integral (delay dy) y0 dt))
+	(define dy (stream-map f y))
+	y
+)
+
 (define stream-of-five-elements (stream-enumerate-interval 5 9))
 stream-of-five-elements
 (stream-cdr stream-of-five-elements)
@@ -93,41 +119,23 @@ scaled-stream
 (stream-car (stream-cdr (stream-cdr (stream-cdr (stream-cdr scaled-stream)))))
 (stream-car (stream-cdr (stream-cdr (stream-cdr (stream-cdr (stream-cdr scaled-stream))))))
 
+(stream-ref (scale-stream sum-stream 4) 0)
+(stream-ref (scale-stream sum-stream 4) 1)
+(stream-ref (scale-stream sum-stream 4) 2)
+(stream-ref (scale-stream sum-stream 4) 3)
+(stream-ref (scale-stream sum-stream 4) 4)
+(stream-ref (scale-stream sum-stream 4) 5)
+
+(define S (solve (lambda (y) y) 1 0.001))
+(stream-ref S 0)
+(stream-ref S 1)
+(stream-ref S 10)
+(stream-ref S 100)
+(stream-ref S 1000)
+
 ;;;;;;;;;;;;;;;;;
 
-(define (integral delayed-integrand initial-value dt)
-	(define int
-		(stream-cons initial-value
-			(let ((integrand (force delayed-integrand)))
-				(add-streams
-					(scale-stream integrand dt)
-					int
-				)
-			)
-		)
-	)
-	int
-)
-
-(define (solve f y0 dt)
-	(define y (integral (delay dy) y0 dt))
-	(define dy (stream-map f y))
-	y
-)
-
-(define (stream-ref s n)
-	(if (= n 0)
-		(stream-car s)
-		(stream-ref (stream-cdr s) (- n 1))
-	)
-)
-
 ; Tests
-
-(stream-ref (solve (lambda (y) y) 1 0.001) 1)
-(stream-ref (solve (lambda (y) y) 1 0.001) 10)
-(stream-ref (solve (lambda (y) y) 1 0.001) 100)
-(stream-ref (solve (lambda (y) y) 1 0.001) 1000)
 
 (define (f x)
 	(define (even? n)
